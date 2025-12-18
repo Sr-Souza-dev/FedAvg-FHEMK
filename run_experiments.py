@@ -14,16 +14,18 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 EXPERIMENTS_ROOT = BASE_DIR / "experiments"
 EXPERIMENTS = {
-    "1": ("new_ckks-fl (baseline CKKS)", EXPERIMENTS_ROOT / "new_ckks-fl"),
-    "2": ("full_ckks-fl (Pyfhel FHE)", EXPERIMENTS_ROOT / "full_ckks-fl"),
-    "3": ("selective_ckks-fl (Mask-guided CKKS)", EXPERIMENTS_ROOT / "selective_ckks-fl"),
+    "1": ("baseline-fl (sem criptografia)", EXPERIMENTS_ROOT / "baseline-fl"),
+    "2": ("new_ckks-fl (baseline CKKS)", EXPERIMENTS_ROOT / "new_ckks-fl"),
+    "3": ("full_ckks-fl (Pyfhel FHE)", EXPERIMENTS_ROOT / "full_ckks-fl"),
+    "4": ("selective_ckks-fl (Mask-guided CKKS)", EXPERIMENTS_ROOT / "selective_ckks-fl"),
 }
 MENU = """Escolha qual experimento deseja executar:
-  1 - new_ckks-fl (baseline CKKS)
-  2 - full_ckks-fl (Pyfhel FHE)
-  3 - selective_ckks-fl (mask-guided CKKS)
-  4 - Todos (executa em sequencia)
-Digite sua opcao (1/2/3/4): """
+  1 - baseline-fl (sem criptografia)
+  2 - new_ckks-fl (baseline CKKS)
+  3 - full_ckks-fl (Pyfhel FHE)
+  4 - selective_ckks-fl (mask-guided CKKS)
+  5 - Todos (executa em sequencia)
+Digite sua opcao (1/2/3/4/5): """
 
 ENV_FLAG = "RUN_EXPERIMENTS_IN_VENV"
 LOGGING_ENV_FLAG = "AQUIPLACA_ENABLE_LOGS"
@@ -137,10 +139,10 @@ def main() -> None:
     logging_enabled = ask_logging_preference()
     set_logging_flag(logging_enabled)
     choice = input(MENU).strip()
-    if choice in {"1", "2", "3"}:
+    if choice in EXPERIMENTS:
         run_experiment(choice)
-    elif choice == "4":
-        for key in ("1", "2", "3"):
+    elif choice == "5":
+        for key in EXPERIMENTS:
             run_experiment(key)
     else:
         print("Opcao invalida. Encerrando.")

@@ -7,3 +7,5 @@ logs/*
 ./.venv
 ./__pycache__
 ./**/__pycache__
+./**/keys/*
+!./**/keys/.gitkeep

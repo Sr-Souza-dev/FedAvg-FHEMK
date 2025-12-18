@@ -12,6 +12,7 @@ sandbox_scripts = "Scripts" if os.name == "nt" else "bin"
 VENV_PYTHON = ROOT / ".venv" / sandbox_scripts / ("python.exe" if os.name == "nt" else "python")
 PYTHON = str(VENV_PYTHON) if VENV_PYTHON.exists() else sys.executable
 EXPERIMENTS = [
+    ("baseline-fl", ROOT / "experiments" / "baseline-fl"),
     ("new_ckks-fl", ROOT / "experiments" / "new_ckks-fl"),
     ("full_ckks-fl", ROOT / "experiments" / "full_ckks-fl"),
     ("selective_ckks-fl", ROOT / "experiments" / "selective_ckks-fl"),
