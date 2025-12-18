@@ -14,6 +14,7 @@ PYTHON = str(VENV_PYTHON) if VENV_PYTHON.exists() else sys.executable
 EXPERIMENTS = [
     ("new_ckks-fl", ROOT / "experiments" / "new_ckks-fl"),
     ("full_ckks-fl", ROOT / "experiments" / "full_ckks-fl"),
+    ("selective_ckks-fl", ROOT / "experiments" / "selective_ckks-fl"),
 ]
 
 

@@ -1,0 +1,111 @@
+224 IEEE TRANSACTIONS ON DEPENDABLE AND SECURE COMPUTING, VOL. 22, NO. 1, JANUARY/FEBRUARY 2025
+Fig. 2. Ciphertext size compared with unencrypted.
+unfortunately, there are two major problems with individual
+masking. First, the result of any computation that involves
+encrypted numbers will also be encrypted, which could increase
+the communication overhead if different encryption masks are
+adopted. Assume that there are only two clients:A and B.I f
+client A chooses to encrypt the ﬁrst half of the model weights
+while clientB encrypts the remaining half, their model updates
+can still be processed on the server, but all the weights will
+be encrypted after aggregation. This doubles the ciphertext size
+when the server dispatches the global model in the next round.
+Second, there is an implicit assumption in(2) that the model
+weights are encrypted separately, such that we can precisely
+extract the ciphertext of the model weight at a speciﬁc position
+and aggregate it with its counterparts from other clients. But such
+a one-by-one scheme is not practical, especially for large-scale
+encryption over weights in deep learning models. In practice,
+most de facto homomorphic solutions rely on the batching
+technique [9], [12] to reduce the ciphertext size, i.e., encrypting
+multiple numbers in one single ciphertext.
+To back up our claim, we conducted a measurement study
+about three commonly used homomorphic encryption methods
+including Paillier, CKKS, and BFV . Both CKKS and BFV
+support vector-level encryption and beneﬁt from batching tech-
+niques, while Paillier can only encrypt numbers one-by-one.
+As presented in Fig.2, all three encryption methods inevitably
+inﬂate the space requirement. Since Paillier encrypts in a one-by-
+one manner without batching, the inﬂation ratio stays at around
+200×. In contrast, the overhead of CKKS and BFV is drastically
+decreased when the scale grows and stabilizes around20×.
+Considering the inherent size of modern deep learning models,
+it is much more reasonable to encrypt at the vector level.
+As a result, we have no choice but to encrypt the selected
+weights in a single vector for the practicality. Notice that it’s
+impossible to extract a speciﬁc element from the ciphertext
+during the aggregation. For example, CKKS encodes a vector of
+ﬂoating numbers into a polynomial, and the ciphertext represents
+the parameters of the polynomial instead of the value itself.
+Therefore, if each client chooses a different mask and uploads
+an encrypted vector whose value comes from different positions,
+the server will not be able to aggregate them correctly.
+B. Mask Consensus
+Due to these problems, we argue that individual masking is
+not practical in real-world systems, and all the clients should
+use thesame encryption mask for the following beneﬁts. If all
+the clients encrypt the weights at the same positions, then the
+encrypted and unencrypted data are naturally aligned and can be
+aggregated separately. Also, the number of encrypted weights
+remains unchanged, which means the ciphertext size will be the
+same after aggregation.
+To make this happen, we introduce a special mechanism called
+Mask Consensus to help the clients reach an agreement on the
+ﬁnal encryption mask. When each client has determined its
+preferred encryption maskmk, it will propose it to the server,
+and the server will aggregate all the mask proposals to reach a
+consensus. We will detail how the mask is selected in the next
+section, but here we introduce an assumption on the client’s
+mask proposal in advance.
+Assumption 1: Mask mk is a list sorted based on a client’s
+preference.
+For example, compared with mk[i], the model weight at
+position mk[i−1] is considered more important to clientk and
+should be encrypted with higher priority.
+For the sake of both fairness and efﬁciency, we design the
+mask consensus mechanism as Algorithm1. We ﬁrst interleave
+all the mask proposalsm1,m2 ...m K into one listm′such that
+m′=
+[
+m1[0],m2[0],...m K[0],m1[1],m2[1],...
+]
+.
+Based on our previous assumption, clients’ preferences are
+implied in the order of the mask. Therefore, we can evenly
+distribute the quota to each client by simply choosing the topρN
+elements. But it is possible that different clients may choose the
+same indices, which leads to duplicated values in the selection.
+Thus, we ﬁrst remove all the duplicated values inm′, then pick
+the topρN elements as the ﬁnal mask¯m and send it to clients
+to guide their encryption process.
+With a common encryption mask, each clientk can split the
+model weights into two disjoint vectors:wk
+plain,t for unencrypted
+weights whose indices are not inside¯m, andwk
+enc,t for weights to
+be encrypted. Similarly, the aggregation resultwk
+t of this round
+also consists of these two vectors. And these two vectors can be
+aggregated separately like
+wplain,t =
+∑
+k=1,...,K
+pkwk
+plain,t,
+wenc,t =
+∑
+k=1,...,K
+pkENC(wk
+enc,t). (3)
+Notice that the summation of the encrypted weights is not
+directly adding the ciphertexts together, but evaluating them with
+a special function related to the encryption algorithm.
+Since the mask consensus procedure introduces extra commu-
+nication between server and clients, a concern naturally emerges:
+is it safe to do so? If the mask is randomly generated, then there
+is nothing to worry about since a random mask doesn’t contain
+any information about the training status. Therefore, the security
+of mask consensus is determined by the information carried by
+the masks, and we will discuss it in SectionIV after we introduce
+how mask is selected.
+Authorized licensed use limited to: Universidade Estadual de Campinas. Downloaded on December 18,2025 at 00:26:42 UTC from IEEE Xplore.  Restrictions apply.

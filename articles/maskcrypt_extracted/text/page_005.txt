@@ -1,0 +1,126 @@
+HU AND LI: MASKCRYPT: FEDERATED LEARNING WITH SELECTIVE HOMOMORPHIC ENCRYPTION 225
+Algorithm 1: Mask Consensus.
+Input: Mask proposals from clientsm1,...,m K, encrypt
+ratio ρ
+Output: Final mask ¯m;
+1: Initialize m′as a list of zeros of lengthρN ×K
+2: for k=1,2,...,K do
+3: m′[k :: M]= mk ⊿Interleave the mask proposals
+4: end for
+5: Remove the duplicated elements inm′
+6: Select top ρN elements ofm′as ﬁnal mask¯m
+7: return ¯m
+C. Proposed Framework
+With the mask consensus mechanism, we are now ready to
+present the workﬂow of our proposed MASKCRYPT framework,
+which can be divided into following steps:
+Setup: To prevent compromised keys from one client threat-
+ening others, MASKCRYPT has each clientk generate a public-
+secret key pair (pkk,skk) using a homomorphic encryption
+scheme before training begins. The public keyspkk are syn-
+chronized among all clients. This allows encrypting different
+weight subsets with different client keys.
+Local Training:For each roundt, the server sends the current
+global model weightswt−1 to each clientk. Clientk trains the
+model on its local datasetDk, obtaining updated weightswk
+t .
+Mask Consensus: Client k analyzes wk
+t to determine which
+entries are most sensitive, and computes a mask proposalmk
+based on the current model. Clients send proposals to the server
+for mask consensus, yielding the ﬁnal mask¯m.
+Model Encryption: After reaching consensus on which
+weights to encrypt, clients encrypt the selected weights
+wk
+t [i] | i ∈ ¯m using all clients’ public keyspkj. Speciﬁcally,
+each client k splits ¯m evenly into K subsets I1,...,I K such
+that ⋃K
+j=1 Ij =¯m and |I1| = ··· = |IK|. For each subsetIj,
+client k encrypts the corresponding elements ofwk
+t :
+wk
+t,Ij = ENC(wk
+t [i],pkj) ∀i ∈ Ij
+Where pkj is clientj’s public key for subsetIj. This results in
+K encrypted subsetswk
+t,Ij for each clientk, each encrypted with
+a different keypkj.
+Along with unencrypted weights, this forms the model update
+client k sends to the server:
+{wk
+t,Ij | j =1 ,...,K }∪{ wk
+t [i] |∀ i/∈ ¯m}
+Model Aggregation: Since the encrypted and unencrypted
+weights are aligned in the clients’ model updates, the server can
+aggregate them separately. It performs homomorphic operations
+on the encrypted weights wt,Ij and direct operations on the
+unencrypted weightswt[i]. This yields:
+{wt,Ij | j =1 ,...,K }∪{ wt[i] |∀ i/∈ ¯m}
+Where wt[i] |∀ i/∈ ¯m contains aggregation results for unen-
+crypted weights in plaintext form. However, eachwt,Ij remains
+encrypted under clientj’s public key. One more decryption step
+is required to obtain the ﬁnal aggregated weights.
+Model Decryption:The server sends each encryptedwt,Ij to
+client j, who decrypts withskj and returns decrypted values.
+The server now holds fully aggregatedwt for this round, which
+can be used to start the learning of next round.
+As a brief summary, MASKCRYPT implements the selective
+homomorphic encryption in federated learning, where each
+client determines which part of the local model weights should
+be encrypted by anencryption mask. Due to the problems of
+individual masking, we propose amask consensus mechanism
+to obtain a ﬁnal mask shared by all the clients. Next, we will
+introduce how each client can select an encryption mask within
+a limited encryption quota.
+IV . GRADIENT-GUIDED MASK SELECTION
+A. Problem Formulation
+In the special design of MASKCRYPT, parts of the model
+updates are always encrypted. This means adversaries can the-
+oretically never retrieve the full model weights from clients
+to conduct malicious attacks. Therefore, adversaries have no
+choice but to observe the unencrypted, or exposed, model
+weights to estimate a full copy of clients’ raw model updates for
+attack purposes. To this end, we consider model encryption as
+a client-side behavior of managing the weights that are exposed
+to the server or other potential adversaries. This strategically
+minimizes empirical security concerns by deciding which parts
+of the model weights should be protected while others can be
+safely publicized.
+Let wk
+exp,t denote the model weights that clientk exposes at
+round t. Before federated learning starts, we setwk
+exp,0 to the
+initial model weightsw0 for each client. Throughout training,
+clients choose different encryption masks to decide which parts
+of the model weights to expose in each round. This leads to an it-
+erative updating process of the exposed weights. Note thatwk
+exp,t
+is not equivalent to the model updates that clientk sends to the
+server in roundt. This is because only the unencrypted weights
+are exposed, while the encrypted weights are not exposed in this
+round, but were exposed in previous rounds.
+When the latest global model weightswt−1 arrive at client
+k in round t, the client needs to update the exposed model
+weights from the last round before its local training starts. This
+is becausewt−1 is not encrypted, and an adversary can use these
+new weights to replace the old ones in the exposed model of the
+previous roundwk
+exp,t−1. We denote the exposed weights in this
+phase as ˜wk
+exp,t to distinguish it from the ﬁnal exposed weights
+of this round. It is deﬁned as:
+˜wk
+exp,t[i]=
+{wt−1[i],i is not encrypted
+wk
+exp,t−1[i], otherwise .
+Conceptually, ˜wk
+exp,t[i] represents the weights that are exposed
+before local training starts. As soon as client k ﬁnishes its
+training and obtains the locally updated modelwk
+t for this round,
+an encryption maskmk will be applied onwk
+t before sending it to
+the server for aggregation. There is no doubt that the unencrypted
+weights will be exposed; therefore, the ﬁnal exposed model
+Authorized licensed use limited to: Universidade Estadual de Campinas. Downloaded on December 18,2025 at 00:26:42 UTC from IEEE Xplore.  Restrictions apply.

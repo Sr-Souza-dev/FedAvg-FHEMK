@@ -1,0 +1,107 @@
+232 IEEE TRANSACTIONS ON DEPENDABLE AND SECURE COMPUTING, VOL. 22, NO. 1, JANUARY/FEBRUARY 2025
+TABLE III
+THE PERPLEXITY OF EXPOSED MODEL WEIGHTS OF DISTILGPT2 UNDER
+DIFFERENT ENCRYPTION SCHEME
+But even with only 20% of encrypted weights, the commu-
+nication size is still up to 2.4 GB, and the corresponding cryp-
+tographic operations takes a few minutes to ﬁnish. Therefore,
+an essential question is how many model weights need to be
+encrypted for 𝖣𝗂𝗌𝗍𝗂𝗅𝖦𝖯𝖳2 to be secure. Since the performance
+of existing membership inference attack on transformer mod-
+els [20] largely depends on a user-deﬁned threshold (i.e., one
+can easily adjust the threshold value to obtain desired attack
+result), we use a more objective metric, the model perplexity
+of the exposed model weights, to evaluate the security —-
+higher perplexity means the model has less knowledge on the
+training data. As presented in TableIII, without any protection,
+the perplexity of𝖣𝗂𝗌𝗍𝗂𝗅𝖦𝖯𝖳2 decreases to 29.31 on the clients’
+training data. Similar perplexities were observed on the ran-
+dom mask encryption scheme across different encrypt ratios. In
+contrast, the perplexity of MASKCRYPT is signiﬁcantly higher
+with the same encrypt ratio, which means the model weights
+of MASKCRYPT have a worse performance on the local training
+data, which implies that they are safer to be exposed.
+Notice that if we adopt the full weights encryption scheme,
+only the initial, pre-trained model weights from HuggingFace
+will be exposed, whose perplexity on clients’ training data is
+92.35, while the perplexity of MASKCRYPT is 97.53 with an
+encrypt ratio of 10%. In other words, we can achieve the same
+level of security as full weights encryption, from the perspective
+of perplexity, by only encrypting 10% of the weights.
+An interesting observation is that the perplexity of MASK-
+CRYPTcan be even higher than full encryption with more weights
+being encrypted. The reason is that with full encryption scheme,
+the perplexity is evaluated on the initial model because the server
+has no access to any model weights during the FL training pro-
+cess. The initial model performs poorly, but it is still a consistent
+pre-trained model. Yet, with MASKCRYPT, the exposed model
+weights are not consistent: some weights come from roundt, and
+other weights come from some other rounds. Such inconsistency
+corrupts the model, leading to an even worse performance than
+the initial model.
+VII. RELATED WORK
+Federated learning allows multiple clients to collaboratively
+train a machine learning model without sharing their private data,
+yet recent studies[4] show that the model weights or gradients
+exchanged between clients and server exposed the privacy of
+clients under various privacy attacks, such as membership in-
+ference [2], [21], feature inference[22] and even reconstructing
+input data from model updates[3].
+Many strategies have been proposed to protect clients against
+attacks of such exposure. One way is to perturb the model
+updates with noises such that an adversarial can barely learn any-
+thing from it. For example, based on the DP-SGD algorithm[5],
+McMahan et al. extends differential privacy to federated learning
+and proposed DP-FedAvg[6] to inject differential privacy noise
+during the local training phase. However, both our experimental
+results and the empirical studies in[7], [15] show that differential
+privacy noises inevitably degrade the model accuracy, which
+contradicts the fundamental goal of training a high-performance
+model in federated learning.
+Secure aggregation[23] is another choice that allows a server
+to compute the sum of data vectors from clients in a secure
+manner, i.e., the server learns nothing but the aggregation result.
+SAFELearn [24] further improves the communication efﬁciency
+of secure aggregation in federated learning. But still, they allow
+the server to see the plaintext aggregated model or gradients,
+based on which the information about the trained model or client
+data can be inferred by adversarial entities.
+In contrast, homomorphic encryption outperforms the afore-
+mentioned methods in the following aspects: ﬁrst, the model
+updates remain unchanged after encryption and decryption,
+so there is no worry about any accuracy degradation. Recent
+works [14], [16] attempt to combine federated learning with
+homomorphic operations to provide a secure environment.
+However, homomorphic encryption introduces a signiﬁcant
+amount of communication overhead due to the inﬂated cipher-
+text size as we presented in the evaluation. Some encryption
+algorithm-level optimizations, such as[25], [26], can be adopted
+to reduce the ciphertext size. More speciﬁcally, in the context
+of federated learning, Liu et al. proposed BatchCrypt[12] to
+encode a batch of quantized gradients into a long integer and
+encrypt it together, which reduces the communication size in
+federated learning by a substantial margin. Jiang et al. intro-
+duced FLASHE [11] as a tailored homomorphic encryption
+scheme for cross-silo federated learning. But all of these works
+choose to encrypt all the model weights or gradients without
+considering encryption sparsity, i.e., how many information we
+need to encrypt before we can claim it’s safe enough. Therefore,
+MASKCRYPT can be combined with these techniques to further
+reduce the communication overhead.
+While early work focused solely on one aggregation scheme,
+recent years have seen more efforts to combine multiple secure
+methods to provide better performance in terms of privacy and
+training efﬁciency. For example, Kairouz et al.[27] discretize
+the model updates and adds discrete Gaussian noise before
+performing secure aggregation. Similarly, Stevens et al.[27]
+combine secure aggregation with differential privacy to ensure
+end-to-end privacy in federated learning. Zheng et al. [28]
+introduce a lightweight secure aggregation protocol, and use
+quantization-based model compression to reduce the communi-
+cation overhead. These works still operate on the entire model
+updates, where computation and communication complexities
+are determined by the vector sizes needing aggregation. There-
+fore, MASKCRYPT’s ﬁndings could also be combined with them,
+i.e., by reducing the size of the aggregating vectors to further
+improve training efﬁciency.
+Authorized licensed use limited to: Universidade Estadual de Campinas. Downloaded on December 18,2025 at 00:26:42 UTC from IEEE Xplore.  Restrictions apply.

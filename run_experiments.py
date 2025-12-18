@@ -10,17 +10,20 @@ import sys
 import tomllib
 from pathlib import Path
 
+
 BASE_DIR = Path(__file__).resolve().parent
 EXPERIMENTS_ROOT = BASE_DIR / "experiments"
 EXPERIMENTS = {
     "1": ("new_ckks-fl (baseline CKKS)", EXPERIMENTS_ROOT / "new_ckks-fl"),
     "2": ("full_ckks-fl (Pyfhel FHE)", EXPERIMENTS_ROOT / "full_ckks-fl"),
+    "3": ("selective_ckks-fl (Mask-guided CKKS)", EXPERIMENTS_ROOT / "selective_ckks-fl"),
 }
 MENU = """Escolha qual experimento deseja executar:
   1 - new_ckks-fl (baseline CKKS)
   2 - full_ckks-fl (Pyfhel FHE)
-  3 - Ambos (executa em sequencia)
-Digite sua opcao (1/2/3): """
+  3 - selective_ckks-fl (mask-guided CKKS)
+  4 - Todos (executa em sequencia)
+Digite sua opcao (1/2/3/4): """
 
 ENV_FLAG = "RUN_EXPERIMENTS_IN_VENV"
 LOGGING_ENV_FLAG = "AQUIPLACA_ENABLE_LOGS"
@@ -134,12 +137,10 @@ def main() -> None:
     logging_enabled = ask_logging_preference()
     set_logging_flag(logging_enabled)
     choice = input(MENU).strip()
-    if choice == "1":
-        run_experiment("1")
-    elif choice == "2":
-        run_experiment("2")
-    elif choice == "3":
-        for key in ("1", "2"):
+    if choice in {"1", "2", "3"}:
+        run_experiment(choice)
+    elif choice == "4":
+        for key in ("1", "2", "3"):
             run_experiment(key)
     else:
         print("Opcao invalida. Encerrando.")

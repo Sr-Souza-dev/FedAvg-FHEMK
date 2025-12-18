@@ -1,0 +1,115 @@
+222 IEEE TRANSACTIONS ON DEPENDABLE AND SECURE COMPUTING, VOL. 22, NO. 1, JANUARY/FEBRUARY 2025
+In this paper, we consider an important question: Do we have
+to encrypt all the model weights? An intuition that naturally
+arises is to encrypt only a portion of the model weights, and yet
+manage to achieve the same level of security. Starting from this
+intuition, we have designed and implemented MASKCRYPT,a
+new mechanism designed to provide an “affordable” security in
+practical federated learning systems. A highlight in MASKCRYPT
+is our selective homomorphic encryption mechanism, which
+allows a client to selectively apply homomorphic encryption
+on a subset of the model weights. By reducing the number of
+model weights to be encrypted, we aim to explore the trade-off
+between security and practicality and to reduce the communica-
+tion overhead by a substantial margin, yet still making sure that
+the training session is secure enough against malicious attacks.
+Highlights of our original contributions are as follows.
+First, to the best of our knowledge, MASKCRYPT is the ﬁrst
+federated learning system that explores the encryption sparsity,
+i.e., encrypting not all but part of the model updates. Speciﬁcally,
+when the local training phase is ﬁnished, the model updates
+will be sifted into unencrypted and encrypted ones through
+an encryption mask, where the encrypted ones will be handed
+to a homomorphic encryption algorithm before sending to the
+server and unencrypted ones remain untouched. MASKCRYPT is
+agnostic to the encryption algorithm; any existing encryption
+mechanism can be adopted.
+Second, clients may choose different encryption masks due
+to their own privacy concerns. However, considering both com-
+putation and communication efﬁciency, we argue that all clients
+should share a common encryption mask. To meet this require-
+ment, we introduce a special mechanism, calledMask Consen-
+sus, to help clients reach an agreement on the ﬁnal encryption
+mask.
+Third, to protect the privacy of client as much as possible
+within a limited encryption quota, we propose agradient-guided
+mechanism to help clients select the encryption mask. We formu-
+late the encryption mask as a model delta applied on the trained
+model weights. By choosing the mask whose corresponding
+deltas are the closest to the gradient direction, we can maximize
+the possible increase of the loss value of the exposed model
+weights, thereby obfuscating the training trace on client’s private
+data.
+Finally, We have implemented and evaluated MASKCRYPT
+in an open-source federated learning framework called PLATO.
+Compared with full weights encryption, MASKCRYPT reduces
+the communication overhead by up to 4.15× with an encrypt
+ratio of 20%. To evaluate the security performance, We have
+performed two well-known attacks, membership inference at-
+tack and data reconstruction attack, on MASKCRYPT.O u re x -
+perimental results have shown clear and convincing evidence
+that MASKCRYPT can achieve similar protection as full weight
+encryption, but only encrypts a small part of the model weights.
+The remaining part of this paper is organized as follows.
+The preliminaries of membership inference attack, federated
+learning and homomorphic encryption are introduced in Sec-
+tion II. Then we detail the system design of MASKCRYPT and
+the mask consensus mechanism in SectionIII, and elaborate
+the gradient-guided mask selection algorithm in SectionIV.
+The security analysis and evaluation results will be presented
+in SectionsV and VI. And lastly, we highlight the originality of
+MASKCRYPTunder the comparison with related works in Section
+VII and conclude this paper in SectionVIII.
+II. PRELIMINARIES
+A. Federated Learning
+We consider a general cross-device federated learning sce-
+nario where K clients collaboratively train a model with the
+help of a central server. The training session starts with an initial
+model, w0, on the server. At roundt, the server will send the
+global model weightswt−1 to each clientk. Each client deﬁnes a
+loss functionL(w,Dk) on the modelwand its own datasetDK,
+and whenwt−1 arrives, it will perform an optimization algorithm
+(e.g., SGD) for a few epochs to obtain a locally updated model,
+wk
+t , which is then sent to the server. After the server receives
+the updates from all its selected clients, it produces an updated
+global model using an aggregation algorithm like below, and
+uses it for the next round:
+wt =
+∑
+k=1,...,K
+pkwk
+t (1)
+Intuitively, federated learning protects data privacy by keep-
+ing the data secured locally and only exposing model weights to
+the server. However, recent work has shown that the unprotected
+information exchange between the server and clients still leaves a
+huge attack surface for adversaries[4]. For example, based solely
+on model outputs, a membership inference attack can determine
+whether a speciﬁc data sample appeared in the training set, which
+could be a major threat to sensitive data.
+Initially proposed to be a black-box attack, the risk of member-
+ship inference attack is even higher in federated learning for two
+reasons. First, the model needs to adapt to the dataset from all the
+clients, which means the capacity of the model has to be greater
+than the dataset of any single client. Therefore, the over-ﬁtting
+problem is more likely to happen during the local training phase,
+thereby leaving more opportunities for the attacker.Second,t h e
+server has white-box access to the model weights trained by each
+client, which means there is no way to hide the model output.
+Therefore, a vanilla FL training session without any protection
+on the shared model weights makes the participating client a
+perfect victim to membership inference attacks.
+B. Homomorphic Encryption
+To defend against attacks targeted on the exposed model,
+a natural idea is encrypting the weights to protect original
+model weights against adversaries. Homomorphic encryption is
+a special family of encryption algorithms for numerical data,
+e.g., CKKS [9] for ﬂoating numbers, as well as Paillier [8]
+and BFV [10] for integers. Homomorphic encryption allows
+operations like addition and multiplication of plaintext numbers
+to be evaluated on the encrypted ciphertext with some special
+functions, and only those who have the secret key can decipher
+the result. Such a property makes homomorphic encryption an
+appealing security solution in federated learning because the
+Authorized licensed use limited to: Universidade Estadual de Campinas. Downloaded on December 18,2025 at 00:26:42 UTC from IEEE Xplore.  Restrictions apply.

@@ -5,3 +5,5 @@ torchvision==0.23.0
 Pyfhel>=3.4.1
 numpy>=1.26.0
 pytest>=8.3.0
+pypdf[image]>=4.2.0
+pillow>=10.0.0

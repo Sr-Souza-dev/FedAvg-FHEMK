@@ -1,0 +1,107 @@
+HU AND LI: MASKCRYPT: FEDERATED LEARNING WITH SELECTIVE HOMOMORPHIC ENCRYPTION 223
+Fig. 1. Model weights that can be estimated by adversaries under different
+encryption schemes.
+aggregation process of federated learning is mainly based on
+addition of the model updates.
+With homomorphic encryption, the clients can obtain the
+same aggregation result while the server has no access to
+the model updates, which guarantees a high-level of security
+because there is no way to conduct inference attacks on the
+encrypted model. As illustrated at the middle in Fig.1, if clients
+encrypt all the updated model weights, the adversaries have no
+choice but to estimate the model weights based on the infor-
+mation from previous rounds. For example, if a client chooses
+to encrypt the model in a speciﬁc round while the model of
+the last round is sent without encryption, adversaries can only
+attack on the model weights exposed at last round. And if clients
+conduct encryption at every round, only the initial model will
+be exposed which is randomly generated, and posts no threats
+to data privacy.
+However, despite the outstanding security advantage, ho-
+momorphic encryption algorithms typically yield signiﬁcantly
+larger ciphertext compared with plaintext, which leads to a
+formidable communication overhead. While communication
+efﬁciency has been the focus of many existing works in the
+literature — often presenting marginal improvements only —
+homomorphic encryption can easily boost the size of data trans-
+mission by hundreds of times[11] depending on the algorithm
+used. Considering the inherent size of modern deep learning
+models, encrypting all the weights in a model inevitably incurs
+unbearable communication overhead.
+Therefore, in this paper, we raise a simple question: do we
+really have to encrypt all the model weights which can be up
+to millions? Or can we just select a part of it for encryption as
+presented on the right in Fig.1, but still achieve the same level
+of security?
+C. Threat Model
+Before we proceed to our work, we would like to formally
+introduce and justify the threat model in this paper. Follow
+existing works in the literature, we assume that the server is
+honest-but-curious, which implies the server honestly carries
+out the algorithm but tries to learn as much as possible from the
+updates received from clients, e.g., performing inference attacks
+on the reported model weights.
+Most prior work on federated learning with homomorphic
+encryption (e.g., [13], [14], [15], [16]) makes the unrealistic
+assumption that clients will not collude with the server. This is
+because clients share the secret key to decrypt aggregated model
+weights. If any client provides this key to the server, the server
+can decrypt updates from all clients. In this work, we relax this
+assumption by allowing potential client collusion. For example,
+some clients may collude by sharing keys with the server or other
+clients. We discuss the security implications of such collusion
+in SectionV.
+III. FRAMEWORK DESIGN
+In this section, we present how selective homomorphic en-
+cryption can be implemented from a straw man solution called
+Individual Masking, where each client individually chooses
+which part of the model updates shall be encrypted. We then
+analyze the shortcomings of such a method, which motivates
+the design of mask consensus. We ﬁnally present our solution
+called MASKCRYPT.
+A. Individual Masking
+At the end of roundt, a client k ﬁnishes the training and
+obtains a locally updated modelwk
+t . Before it uploadswk
+t to the
+server for aggregation, the client can choose to encrypt a part of
+wk
+t according to an encryption maskmk. We deﬁne the mask as
+a subset of indices. For example, assuming the model has a total
+of N model weights, then a valid maskmk has to satisfy
+mk ⊂{ 0,1,2,...,N },
+|mk| = ρN,
+where |mk| is the size of mk, and 0 ≤ ρ ≤ 1 represents the
+encrypt ratio that controls the number of encrypted weights,
+i.e., no encryption whenρ =0 , and all model updates will be
+encrypted whenρ =1 .
+With the encryption mask, a natural idea to encrypt the model
+is simply to replace the target model weights by their corre-
+sponding ciphertext after encryption, i.e., clientk can encrypt
+wk
+t [i] by
+wk
+t [i]=
+{wk
+t [i],i / ∈ mk
+ENC
+(
+wk
+t [i]
+)
+,i ∈ mk (2)
+where ENC(·) is the homomorphic encryption scheme adopted
+in this FL session.
+Consider a simple case that each client chooses its own
+individual mask m1,m2,...,m k to encrypt the model, then
+some of the weights in a speciﬁc position can be encrypted
+while others remain plaintext. As long as we choose a homo-
+morphic encryption algorithm that supports addition and scalar
+multiplication, the server can still aggregate them with(1),e v e n
+though the model updates are in a hybrid form of encrypted and
+unencrypted values. The server can then send the aggregation
+results back to clients and start the next round of training.
+Taking the advantage of homomorphic encryption, it appears
+that a complete federated learning session with mask encryption
+can be easily implemented with the procedures above. But
+Authorized licensed use limited to: Universidade Estadual de Campinas. Downloaded on December 18,2025 at 00:26:42 UTC from IEEE Xplore.  Restrictions apply.
