@@ -8,7 +8,7 @@ from fl_simulation.model.model import Net, get_weights, set_weights, test, train
 from fl_simulation.model.data_loader import load_data
 
 from utils.flatten import flatten, get_structure, unflatten
-from utils.files import register_logs
+from utils.files import logging_enabled, register_logs
 from fl_simulation.ckks_instance import ckks
 
 import time
@@ -33,13 +33,33 @@ class FlowerClient(NumPyClient):
 
     def fit(self, parameters, config):
         start = time.time()
-        register_logs(file_name=self.client_id, title=f"\n ------------- Round (fit) {config["server_round"]} -------------- \n", value="")
-        register_logs(file_name=self.client_id, title=f"\nModel Received Start: {type(parameters)}", value=repr(parameters))
+        log_enabled = logging_enabled()
+        if log_enabled:
+            register_logs(
+                file_name=self.client_id,
+                title=f"\n ------------- Round (fit) {config['server_round']} -------------- \n",
+                value="",
+            )
+            register_logs(
+                file_name=self.client_id,
+                title=f"\nModel Received Start: {type(parameters)}",
+                value=repr(parameters),
+            )
         if self.is_flattened and config.get("is_flattened") and config["server_round"] > 1:
-            register_logs(file_name=self.client_id, title=f"\nModel Received: {type(parameters[0])}", value=repr(parameters[0]))
+            if log_enabled:
+                register_logs(
+                    file_name=self.client_id,
+                    title=f"\nModel Received: {type(parameters[0])}",
+                    value=repr(parameters[0]),
+                )
             parameters = parameters[0]
             parameters = unflatten(parameters, self.structure)
-            register_logs(file_name=self.client_id, title="\nModel Received _after:", value=repr(parameters))
+            if log_enabled:
+                register_logs(
+                    file_name=self.client_id,
+                    title="\nModel Received _after:",
+                    value=repr(parameters),
+                )
 
         
         set_weights(self.net, parameters)
@@ -58,10 +78,20 @@ class FlowerClient(NumPyClient):
         if self.is_flattened:
             flat_weights = flatten(weights)
             payload_size = float(flat_weights.nbytes)
-            register_logs(file_name=self.client_id, title="\n Model after flatten:", value=repr(flat_weights))
+            if log_enabled:
+                register_logs(
+                    file_name=self.client_id,
+                    title="\n Model after flatten:",
+                    value=repr(flat_weights),
+                )
             ciphertexts = ckks.encrypt_batch(sk=self.sk, plaintext=flat_weights)
             weights = ckks.extract_vector(ciphertexts)
-            register_logs(file_name=self.client_id, title="\n Model encripted vector:", value=repr(weights))
+            if log_enabled:
+                register_logs(
+                    file_name=self.client_id,
+                    title="\n Model encripted vector:",
+                    value=repr(weights),
+                )
 
         end = time.time()
         return (
@@ -75,8 +105,18 @@ class FlowerClient(NumPyClient):
         )
 
     def evaluate(self, parameters, config):
-        register_logs(file_name=self.client_id, title=f"\n ------------- Round (evaluate) {config["server_round"]} -------------- \n", value="")
-        register_logs(file_name=self.client_id, title="\nModel Received:", value=repr(parameters[0]))
+        log_enabled = logging_enabled()
+        if log_enabled:
+            register_logs(
+                file_name=self.client_id,
+                title=f"\n ------------- Round (evaluate) {config['server_round']} -------------- \n",
+                value="",
+            )
+            register_logs(
+                file_name=self.client_id,
+                title="\nModel Received:",
+                value=repr(parameters[0]),
+            )
 
         if self.is_flattened and config.get("is_flattened"):
             parameters = parameters[0]

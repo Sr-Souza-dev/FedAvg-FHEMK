@@ -23,6 +23,8 @@ MENU = """Escolha qual experimento deseja executar:
 Digite sua opcao (1/2/3): """
 
 ENV_FLAG = "RUN_EXPERIMENTS_IN_VENV"
+LOGGING_ENV_FLAG = "AQUIPLACA_ENABLE_LOGS"
+EXPERIMENT_ENV_FLAG = "AQUIPLACA_EXPERIMENT_NAME"
 _RAY_AVAILABLE = importlib.util.find_spec("ray") is not None
 
 
@@ -67,12 +69,30 @@ def ensure_environment() -> None:
     extend_path(os.environ)
 
 
+def ask_logging_preference() -> bool:
+    """Ask the user whether logs should be recorded for this run."""
+    prompt = "Deseja registrar logs desta execucao? (s/n) [s]: "
+    while True:
+        answer = input(prompt).strip().lower()
+        if answer in ("", "s", "sim", "y", "yes"):
+            return True
+        if answer in ("n", "nao", "no"):
+            return False
+        print("Opcao invalida. Responda com 's' ou 'n'.")
+
+
+def set_logging_flag(enabled: bool) -> None:
+    os.environ[LOGGING_ENV_FLAG] = "1" if enabled else "0"
+
+
 def run_experiment(key: str) -> None:
     name, path = EXPERIMENTS[key]
     if not path.exists():
         print(f"[ERRO] Diretorio do experimento '{name}' nao encontrado em {path}")
         sys.exit(1)
     print(f"\n=== Iniciando {name} ===")
+    child_env = os.environ.copy()
+    child_env[EXPERIMENT_ENV_FLAG] = path.name
     if _RAY_AVAILABLE:
         cmd = ["flwr", "run", "."]
     else:
@@ -90,7 +110,7 @@ def run_experiment(key: str) -> None:
             "--backend",
             "inline",
         ]
-    result = subprocess.run(cmd, cwd=path)
+    result = subprocess.run(cmd, cwd=path, env=child_env)
     if result.returncode != 0:
         print(f"[ERRO] Execucao de '{name}' falhou (codigo {result.returncode}).")
         sys.exit(result.returncode)
@@ -111,6 +131,8 @@ def load_num_supernodes(path: Path) -> int:
 
 def main() -> None:
     ensure_environment()
+    logging_enabled = ask_logging_preference()
+    set_logging_flag(logging_enabled)
     choice = input(MENU).strip()
     if choice == "1":
         run_experiment("1")

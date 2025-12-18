@@ -16,6 +16,8 @@ def get_random_polynomial(coef_t = 2**2) -> tuple[Polynomials, Polynomial]:
     """Gera um polinômio aleatório de grau `degree` com coeficientes entre -10 e 10."""
     coefficients = [random.randint(-coef_t, coef_t) for _ in range(random.randint(2**2, 2**3))]
     coefficients = remove_trailing_zeros(coefficients)
+    if not coefficients:
+        coefficients = [random.randint(1, coef_t) or 1]
     return Polynomials(coefficients), Polynomial(coefficients)
 
 def compary_array(a, b):

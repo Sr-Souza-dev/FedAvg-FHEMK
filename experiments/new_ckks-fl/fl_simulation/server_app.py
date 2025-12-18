@@ -10,16 +10,23 @@ from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from fl_simulation.ckks_instance import ckks
 from fl_simulation.model.model import Net, get_weights
 from fl_simulation.strategies.fedAvg import FedAvg
-from utils.files import delete_directory_files, experiment_output_dir, write_numbers_to_file
+from utils.files import (
+    current_logs_dir,
+    delete_directory_files,
+    experiment_output_dir,
+    next_run_id,
+    write_numbers_to_file,
+)
 from utils.flatten import flatten
-from utils.uuid import get_uid_per_minute
 
 EXPERIMENT_NAME = "new_ckks-fl"
-execution_id = get_uid_per_minute()
+execution_id = ""
 is_flattened = True
 
 
 def _metrics_base_path() -> str:
+    if not execution_id:
+        raise RuntimeError("execution_id not set; ensure server_fn initialized the run.")
     return str(experiment_output_dir(EXPERIMENT_NAME, is_flattened, execution_id))
 
 
@@ -63,7 +70,7 @@ def server_fn(context: Context):
     fraction_fit = context.run_config["fraction-fit"]
     fraction_evaluate = context.run_config["fraction-evaluate"]
     is_flattened = context.run_config["is-encrypted"] == 1
-    execution_id = get_uid_per_minute()
+    execution_id = next_run_id(EXPERIMENT_NAME)
 
     ndarrays = get_weights(Net())
     parameters = ndarrays_to_parameters(ndarrays)
@@ -71,7 +78,7 @@ def server_fn(context: Context):
 
     print(f"Parameters_size: {len(array_params)}")
     delete_directory_files("keys/")
-    delete_directory_files("logs/")
+    delete_directory_files(current_logs_dir())
     delete_directory_files("public/")
 
     strategy = FedAvg(

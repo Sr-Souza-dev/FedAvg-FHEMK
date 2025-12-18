@@ -1,7 +1,7 @@
 
 from logging import WARNING
 from typing import Callable, Optional, Union
-from utils.files import register_logs
+from utils.files import logging_enabled, register_logs
 
 from flwr.common import (
     EvaluateIns,
@@ -213,13 +213,28 @@ class FedAvg(Strategy):
         if not results or (not self.accept_failures and failures):
             return None, {}
         
-        register_logs(file_name="server", title=f"\n ------------- Round {server_round} -------------- \n", value="")
-        register_logs(file_name="server", title="\n Results:", value=repr(results))
+        log_enabled = logging_enabled()
+        if log_enabled:
+            register_logs(
+                file_name="server",
+                title=f"\n ------------- Round {server_round} -------------- \n",
+                value="",
+            )
+            register_logs(
+                file_name="server",
+                title="\n Results:",
+                value=repr(results),
+            )
 
         if self.is_flattened:
             sk = Polynomials(coefficients=[])
             #  sk = ckks.load_key(prefix="server")
-            register_logs(file_name="server", title="\n server Keys:", value=repr(sk.coefficients))
+            if log_enabled:
+                register_logs(
+                    file_name="server",
+                    title="\n server Keys:",
+                    value=repr(sk.coefficients),
+                )
 
             # Convert to an array of cryptograms
             weights_cypher = []
@@ -238,21 +253,40 @@ class FedAvg(Strategy):
 
                 sk_cl = ckks.load_key(prefix=str(client.node_id))
                 sk += sk_cl
-                register_logs(file_name="server", title=f"\n Client Model ({client.node_id}):", value=repr(
-                    ckks.decrypt_batch(sk=sk_cl, ciphertexts=model_enc)
-                ))
-                register_logs(file_name="server", title=f"\n Client A ({client.node_id}):", value=repr(
-                    model_enc[0].c1.coefficients
-                ))
+                if log_enabled:
+                    register_logs(
+                        file_name="server",
+                        title=f"\n Client Model ({client.node_id}):",
+                        value=repr(
+                            ckks.decrypt_batch(sk=sk_cl, ciphertexts=model_enc)
+                        ),
+                    )
+                    register_logs(
+                        file_name="server",
+                        title=f"\n Client A ({client.node_id}):",
+                        value=repr(model_enc[0].c1.coefficients),
+                    )
 
-            register_logs(file_name="server", title="\n Models encripted:", value=repr(weights_cypher))
+            if log_enabled:
+                register_logs(
+                    file_name="server",
+                    title="\n Models encripted:",
+                    value=repr(weights_cypher),
+                )
 
             # Agregate all clients ciphertexts
             aggregated_ndarrays = aggregate_ndarrays(weights_cypher)
-            register_logs(file_name="server", title=f"\n Server agg A:", value=repr(
-                aggregated_ndarrays[0].c1.coefficients
-            ))
-            register_logs(file_name="server", title="\n Model encripted:", value=repr(aggregated_ndarrays))
+            if log_enabled:
+                register_logs(
+                    file_name="server",
+                    title=f"\n Server agg A:",
+                    value=repr(aggregated_ndarrays[0].c1.coefficients),
+                )
+                register_logs(
+                    file_name="server",
+                    title="\n Model encripted:",
+                    value=repr(aggregated_ndarrays),
+                )
 
             aggregated_ndarrays = ckks.decrypt_batch(sk=sk, ciphertexts=aggregated_ndarrays)
             
@@ -260,7 +294,12 @@ class FedAvg(Strategy):
             if total_examples > 0:
                 aggregated_ndarrays = aggregated_ndarrays / total_examples
 
-            register_logs(file_name="server", title="\n Model decripted:", value=repr(aggregated_ndarrays))
+            if log_enabled:
+                register_logs(
+                    file_name="server",
+                    title="\n Model decripted:",
+                    value=repr(aggregated_ndarrays),
+                )
             parameters_aggregated = ndarrays_to_parameters([aggregated_ndarrays])
 
         else:
@@ -271,7 +310,12 @@ class FedAvg(Strategy):
             aggregated_ndarrays = aggregate(weights_results)                # Realiza a agregação dos parâmetros por média ponderada
             parameters_aggregated = ndarrays_to_parameters(aggregated_ndarrays)
 
-        register_logs(file_name="server", title="\n Model paramenters:", value=repr(parameters_aggregated))
+        if log_enabled:
+            register_logs(
+                file_name="server",
+                title="\n Model paramenters:",
+                value=repr(parameters_aggregated),
+            )
         # Aggregate custom metrics if aggregation fn was provided
         metrics_aggregated = {}
         if self.fit_metrics_aggregation_fn:

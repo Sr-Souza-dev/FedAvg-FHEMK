@@ -3,17 +3,61 @@
 from pathlib import Path
 from typing import Iterable, List
 import os
+import re
 import shutil
+from threading import Lock
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT_DIR / "output"
 LOGS_DIR = ROOT_DIR / "logs"
+EXPERIMENT_ENV_VAR = "AQUIPLACA_EXPERIMENT_NAME"
+LOGGING_ENV_VAR = "AQUIPLACA_ENABLE_LOGS"
+_RUN_ID_LOCK = Lock()
+
+
+def _sanitize_experiment_name(name: str) -> str:
+    sanitized = re.sub(r"[^A-Za-z0-9._-]", "_", name)
+    return sanitized or "default"
+
+
+def _resolve_experiment_name(explicit: str | None = None) -> str:
+    """Return the sanitized experiment name, favouring the env flag when present."""
+    env_name = os.environ.get(EXPERIMENT_ENV_VAR, "").strip()
+    candidate = env_name or (explicit or "")
+    return _sanitize_experiment_name(candidate or "default")
+
+
+def current_logs_dir() -> Path:
+    """Return the log directory for the active experiment."""
+    experiment = os.environ.get(EXPERIMENT_ENV_VAR, "").strip()
+    if not experiment:
+        return LOGS_DIR / "default"
+    return LOGS_DIR / _sanitize_experiment_name(experiment)
+
+
+def logging_enabled() -> bool:
+    """Return True if log capturing should be performed."""
+    value = os.environ.get(LOGGING_ENV_VAR, "1").strip().lower()
+    return value not in {"0", "false", "no", "n"}
 
 
 def _ensure_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def next_run_id(experiment: str) -> str:
+    """Return the next sequential run identifier (1,2,3,...) for the experiment."""
+    sanitized = _resolve_experiment_name(experiment)
+    experiment_dir = _ensure_dir(OUTPUT_DIR / sanitized)
+    with _RUN_ID_LOCK:
+        numeric_runs = [
+            int(entry.name)
+            for entry in experiment_dir.iterdir()
+            if entry.is_dir() and entry.name.isdigit()
+        ]
+        return str(max(numeric_runs, default=0) + 1)
 
 
 def experiment_output_dir(
@@ -22,8 +66,13 @@ def experiment_output_dir(
     execution_id: str,
     subdir: str = "",
 ) -> Path:
-    mode = "cypher" if encrypted else "plain"
-    path = OUTPUT_DIR / experiment / mode / execution_id
+    experiment_dir = _ensure_dir(OUTPUT_DIR / _resolve_experiment_name(experiment))
+    run_label = str(execution_id).strip()
+    if not run_label:
+        raise ValueError("execution_id cannot be empty; provide a run identifier.")
+    if not run_label.isdigit():
+        raise ValueError(f"execution_id '{run_label}' must be numeric to match the expected run layout.")
+    path = experiment_dir / run_label
     if subdir:
         path = path / subdir
     return _ensure_dir(path)
@@ -80,10 +129,13 @@ def load_numbers_file(
 
 
 def register_logs(title: str, value: str, file_name: str = "default") -> None:
+    if not logging_enabled():
+        return
+    target_dir = _ensure_dir(current_logs_dir())
     write_string_to_file(
         filename=file_name,
         value=title + "\n" + value,
-        base_path=LOGS_DIR,
+        base_path=target_dir,
         extension=".txt",
         open_mode="a",
     )
@@ -140,4 +192,4 @@ def delete_directory_files(dir_path: str | Path | None = None, **kwargs) -> None
             elif item.is_dir():
                 shutil.rmtree(item)
     else:
-        print(f"O diretorio '{directory}' nao existe.")
+        print(f"O diretorio '{directory}' foi deletado com sucesso.")

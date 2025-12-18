@@ -8,20 +8,25 @@ from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from fl_simulation.crypto.ckks_context import build_shared_context
 from fl_simulation.model.model import Net, get_weights
 from fl_simulation.strategies.fed_avg_ckks import HomomorphicFedAvg
-from utils.files import experiment_output_dir, write_numbers_to_file
-from utils.uuid import get_uid_per_minute
+from utils.files import experiment_output_dir, next_run_id, write_numbers_to_file
 
 
 EXPERIMENT_NAME = "full_ckks-fl"
-execution_id = get_uid_per_minute()
+execution_id = ""
 current_encrypted = True
+
+
+def _base_output_path() -> str:
+    if not execution_id:
+        raise RuntimeError("execution_id not set; ensure server_fn initialized the run.")
+    return str(experiment_output_dir(EXPERIMENT_NAME, current_encrypted, execution_id))
 
 
 def fit_metrics_aggregation(metrics: List[Tuple[int, Metrics]]) -> Metrics:
     total_examples = sum(num_examples for num_examples, _ in metrics)
     if total_examples == 0:
         return {"train_loss": 0.0, "execution_time": 0.0}
-    base_path = str(experiment_output_dir(EXPERIMENT_NAME, current_encrypted, execution_id))
+    base_path = _base_output_path()
 
     def _aggregate(key: str) -> float:
         return sum(num_examples * m.get(key, 0.0) for num_examples, m in metrics) / total_examples
@@ -43,7 +48,7 @@ def evaluate_metrics_aggregation(metrics: List[Tuple[int, Metrics]]) -> Metrics:
     total_examples = sum(num_examples for num_examples, _ in metrics)
     if total_examples == 0:
         return {"accuracy": 0.0}
-    base_path = str(experiment_output_dir(EXPERIMENT_NAME, current_encrypted, execution_id))
+    base_path = _base_output_path()
     weighted = sum(num_examples * m.get("accuracy", 0.0) for num_examples, m in metrics)
     accuracy = weighted / total_examples
     per_round = [m.get("accuracy", 0.0) for _, m in metrics] + [accuracy]
@@ -56,7 +61,7 @@ def server_fn(context: Context) -> ServerAppComponents:
     run_cfg = context.run_config
     encrypted = run_cfg["is-encrypted"] == 1
     current_encrypted = encrypted
-    execution_id = get_uid_per_minute()
+    execution_id = next_run_id(EXPERIMENT_NAME)
 
     ckks_context = build_shared_context()
     if encrypted:

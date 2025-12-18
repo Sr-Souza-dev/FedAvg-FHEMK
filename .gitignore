@@ -1,5 +1,9 @@
 ./logs
 ./output
+output
+logs
+output/*
+logs/*
 ./.venv
 ./__pycache__
 ./**/__pycache__
