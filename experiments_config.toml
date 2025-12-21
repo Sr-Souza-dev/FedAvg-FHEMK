@@ -1,0 +1,19 @@
+["baseline-fl"]
+num_rounds = 2
+clients_qtd = 2
+epochs = 2
+
+["new_ckks-fl"]
+num_rounds = 2
+clients_qtd = 2
+epochs = 2
+
+["full_ckks-fl"]
+num_rounds = 2
+clients_qtd = 2
+epochs = 2
+
+["selective_ckks-fl"]
+num_rounds = 2
+clients_qtd = 2
+epochs = 2

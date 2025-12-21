@@ -8,6 +8,7 @@ from flwr.common import Context, Metrics, ndarrays_to_parameters
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from flwr.server.strategy import FedAvg
 
+from experiment_config import get_experiment_config
 from fl_simulation.model import Net, get_weights
 from utils.files import (
     current_logs_dir,
@@ -20,6 +21,7 @@ from utils.files import (
 EXPERIMENT_NAME = "baseline-fl"
 execution_id = ""
 current_encrypted = False
+EXPERIMENT_CONFIG = get_experiment_config(EXPERIMENT_NAME)
 
 
 def _output_path() -> str:
@@ -87,7 +89,7 @@ def server_fn(context: Context):
         on_fit_config_fn=_fit_config,
         on_evaluate_config_fn=_eval_config,
     )
-    server_config = ServerConfig(num_rounds=run_cfg["num-server-rounds"])
+    server_config = ServerConfig(num_rounds=EXPERIMENT_CONFIG.num_rounds)
     return ServerAppComponents(strategy=strategy, config=server_config)
 
 

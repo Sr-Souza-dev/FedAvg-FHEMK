@@ -3,6 +3,10 @@
 output
 logs
 output/*
+plots/
+plots/*
+backup/
+backup/*
 logs/*
 ./.venv
 ./__pycache__

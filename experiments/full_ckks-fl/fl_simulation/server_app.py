@@ -5,6 +5,7 @@ from typing import Dict, List, Tuple
 from flwr.common import Context, Metrics, ndarrays_to_parameters
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 
+from experiment_config import get_experiment_config
 from fl_simulation.crypto.ckks_context import build_shared_context
 from fl_simulation.model.model import Net, get_weights
 from fl_simulation.strategies.fed_avg_ckks import HomomorphicFedAvg
@@ -14,6 +15,7 @@ from utils.files import experiment_output_dir, next_run_id, write_numbers_to_fil
 EXPERIMENT_NAME = "full_ckks-fl"
 execution_id = ""
 current_encrypted = True
+EXPERIMENT_CONFIG = get_experiment_config(EXPERIMENT_NAME)
 
 
 def _base_output_path() -> str:
@@ -80,7 +82,7 @@ def server_fn(context: Context) -> ServerAppComponents:
         evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation,
     )
 
-    server_config = ServerConfig(num_rounds=run_cfg["num-server-rounds"])
+    server_config = ServerConfig(num_rounds=EXPERIMENT_CONFIG.num_rounds)
     return ServerAppComponents(strategy=strategy, config=server_config)
 
 

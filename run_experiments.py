@@ -7,9 +7,9 @@ import importlib.util
 import os
 import subprocess
 import sys
-import tomllib
 from pathlib import Path
 
+from experiment_config import get_experiment_config
 
 BASE_DIR = Path(__file__).resolve().parent
 EXPERIMENTS_ROOT = BASE_DIR / "experiments"
@@ -95,13 +95,13 @@ def run_experiment(key: str) -> None:
     if not path.exists():
         print(f"[ERRO] Diretorio do experimento '{name}' nao encontrado em {path}")
         sys.exit(1)
+    shared_cfg = get_experiment_config(path.name)
     print(f"\n=== Iniciando {name} ===")
     child_env = os.environ.copy()
     child_env[EXPERIMENT_ENV_FLAG] = path.name
     if _RAY_AVAILABLE:
         cmd = ["flwr", "run", "."]
     else:
-        num_supernodes = load_num_supernodes(path)
         print(
             "Ray nao esta disponivel para esta versao do Python, utilizando o backend"
             " inline."
@@ -111,7 +111,7 @@ def run_experiment(key: str) -> None:
             "--app",
             ".",
             "--num-supernodes",
-            str(num_supernodes),
+            str(shared_cfg.clients_qtd),
             "--backend",
             "inline",
         ]
@@ -119,19 +119,6 @@ def run_experiment(key: str) -> None:
     if result.returncode != 0:
         print(f"[ERRO] Execucao de '{name}' falhou (codigo {result.returncode}).")
         sys.exit(result.returncode)
-
-
-def load_num_supernodes(path: Path) -> int:
-    pyproject = path / "pyproject.toml"
-    with pyproject.open("rb") as stream:
-        data = tomllib.load(stream)
-    try:
-        options = data["tool"]["flwr"]["federations"]["local-simulation"]["options"]
-        return int(options["num-supernodes"])
-    except Exception as exc:
-        raise RuntimeError(
-            f"Nao consegui ler 'options.num-supernodes' em {pyproject}"
-        ) from exc
 
 
 def main() -> None:

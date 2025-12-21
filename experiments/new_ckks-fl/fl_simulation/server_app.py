@@ -7,6 +7,7 @@ from typing import List, Tuple
 from flwr.common import Context, Metrics, ndarrays_to_parameters
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 
+from experiment_config import get_experiment_config
 from fl_simulation.ckks_instance import ckks
 from fl_simulation.model.model import Net, get_weights
 from fl_simulation.strategies.fedAvg import FedAvg
@@ -22,6 +23,7 @@ from utils.flatten import flatten
 EXPERIMENT_NAME = "new_ckks-fl"
 execution_id = ""
 is_flattened = True
+EXPERIMENT_CONFIG = get_experiment_config(EXPERIMENT_NAME)
 
 
 def _metrics_base_path() -> str:
@@ -66,7 +68,7 @@ def fit_metrics_aggregation(metrics: List[Tuple[int, Metrics]]) -> Metrics:
 def server_fn(context: Context):
     global ckks, is_flattened, execution_id
 
-    num_rounds = context.run_config["num-server-rounds"]
+    num_rounds = EXPERIMENT_CONFIG.num_rounds
     fraction_fit = context.run_config["fraction-fit"]
     fraction_evaluate = context.run_config["fraction-evaluate"]
     is_flattened = context.run_config["is-encrypted"] == 1

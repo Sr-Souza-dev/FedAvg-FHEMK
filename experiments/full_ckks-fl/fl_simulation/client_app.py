@@ -7,12 +7,16 @@ import torch
 from flwr.client import ClientApp, NumPyClient
 from flwr.common import Context
 
+from experiment_config import get_experiment_config
 from fl_simulation.model.data_loader import load_data
 from fl_simulation.model.model import Net, get_weights, set_weights, test, train
 from fl_simulation.crypto.ckks_context import build_shared_context
 import numpy as np
 
 from utils.weights import flatten_weights
+
+EXPERIMENT_NAME = "full_ckks-fl"
+EXPERIMENT_CONFIG = get_experiment_config(EXPERIMENT_NAME)
 
 
 class FlowerClient(NumPyClient):
@@ -72,7 +76,7 @@ def client_fn(context: Context):
     num_partitions = context.node_config["num-partitions"]
     trainloader, valloader = load_data(partition_id, num_partitions)
     net = Net()
-    local_epochs = context.run_config["local-epochs"]
+    local_epochs = EXPERIMENT_CONFIG.epochs
     encrypted_updates = context.run_config["is-encrypted"] == 1
 
     return FlowerClient(

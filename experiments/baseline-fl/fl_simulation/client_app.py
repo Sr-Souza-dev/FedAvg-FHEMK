@@ -8,6 +8,7 @@ import torch
 from flwr.client import ClientApp, NumPyClient
 from flwr.common import Context
 
+from experiment_config import get_experiment_config
 from fl_simulation.model import (
     Net,
     get_weights,
@@ -17,6 +18,9 @@ from fl_simulation.model import (
     train,
 )
 from utils.files import logging_enabled, register_logs
+
+EXPERIMENT_NAME = "baseline-fl"
+EXPERIMENT_CONFIG = get_experiment_config(EXPERIMENT_NAME)
 
 
 class BaselineClient(NumPyClient):
@@ -79,7 +83,7 @@ def client_fn(context: Context):
     partition_id = context.node_config["partition-id"]
     num_partitions = context.node_config["num-partitions"]
     trainloader, valloader = load_data(partition_id, num_partitions)
-    local_epochs = int(context.run_config["local-epochs"])
+    local_epochs = EXPERIMENT_CONFIG.epochs
 
     return BaselineClient(
         net=Net(),

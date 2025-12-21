@@ -7,3 +7,4 @@ numpy>=1.26.0
 pytest>=8.3.0
 pypdf[image]>=4.2.0
 pillow>=10.0.0
+matplotlib>=3.9.0

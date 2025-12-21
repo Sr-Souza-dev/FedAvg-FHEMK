@@ -8,6 +8,7 @@ import torch
 from flwr.client import ClientApp, NumPyClient
 from flwr.common import Context
 
+from experiment_config import get_experiment_config
 from fl_simulation.crypto.ckks_context import build_shared_context
 from fl_simulation.masking import (
     boolean_mask,
@@ -23,6 +24,9 @@ from model.data_loader import load_data
 from model.model import Net, get_weights, set_weights, test, train
 from utils.files import logging_enabled, register_logs
 from utils.weights import flatten_weights
+
+EXPERIMENT_NAME = "selective_ckks-fl"
+EXPERIMENT_CONFIG = get_experiment_config(EXPERIMENT_NAME)
 
 
 class SelectiveClient(NumPyClient):
@@ -147,7 +151,7 @@ def client_fn(context: Context):
         net=net,
         trainloader=trainloader,
         valloader=valloader,
-        local_epochs=context.run_config["local-epochs"],
+        local_epochs=EXPERIMENT_CONFIG.epochs,
         encrypted_updates=context.run_config["is-encrypted"] == 1,
     ).to_client()
 
