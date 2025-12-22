@@ -1,20 +1,18 @@
 """fl-simulation: A Flower / PyTorch app."""
 
-import torch
-
-from flwr.client import ClientApp, NumPyClient
-from flwr.common import Context
-from experiment_config import get_experiment_config
-from fl_simulation.model.model import Net, get_weights, set_weights, test, train
-from fl_simulation.model.data_loader import load_data
-
-from utils.flatten import flatten, get_structure, unflatten
-from utils.files import logging_enabled, register_logs
-from fl_simulation.ckks_instance import ckks
-
 import time
 
 import numpy as np
+import torch
+from flwr.client import ClientApp, NumPyClient
+from flwr.common import Context
+
+from experiment_config import get_experiment_config
+from fl_simulation.ckks_instance import MODEL_STRUCTURE, ckks
+from fl_simulation.model.data_loader import load_data
+from fl_simulation.model.model import Net, get_weights, set_weights, test, train
+from utils.flatten import flatten, unflatten
+from utils.files import logging_enabled, register_logs
 
 EXPERIMENT_NAME = "new_ckks-fl"
 EXPERIMENT_CONFIG = get_experiment_config(EXPERIMENT_NAME)
@@ -29,8 +27,8 @@ class FlowerClient(NumPyClient):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.net.to(self.device)
         self.partition_id = partition_id
-        self.structure = get_structure(get_weights(self.net))
-        self.size_flattened = len(flatten(get_weights(self.net)))
+        self.structure = MODEL_STRUCTURE
+        self.size_flattened = ckks.model_size
         self.is_flattened = is_flattened
         self.client_id = str(clientId)
         self.sk = ckks.load_key(prefix=str(clientId))
@@ -42,39 +40,32 @@ class FlowerClient(NumPyClient):
             register_logs(
                 file_name=self.client_id,
                 title=f"\n ------------- Round (fit) {config['server_round']} -------------- \n",
-                value="",
+                value=f"received_tensors={len(parameters)}",
             )
-            register_logs(
-                file_name=self.client_id,
-                title=f"\nModel Received Start: {type(parameters)}",
-                value=repr(parameters),
-            )
-        if self.is_flattened and config.get("is_flattened") and config["server_round"] > 1:
+
+        model_parameters = parameters
+        if (
+            self.is_flattened
+            and config.get("is_flattened")
+            and len(parameters) == 1
+            and parameters[0].ndim == 1
+            and parameters[0].size == self.size_flattened
+        ):
+            model_parameters = unflatten(parameters[0], self.structure)
             if log_enabled:
                 register_logs(
                     file_name=self.client_id,
-                    title=f"\nModel Received: {type(parameters[0])}",
-                    value=repr(parameters[0]),
-                )
-            parameters = parameters[0]
-            parameters = unflatten(parameters, self.structure)
-            if log_enabled:
-                register_logs(
-                    file_name=self.client_id,
-                    title="\nModel Received _after:",
-                    value=repr(parameters),
+                    title="\nModel Received (unflattened)",
+                    value=f"num_tensors={len(model_parameters)}",
                 )
 
-        
-        set_weights(self.net, parameters)
+        set_weights(self.net, model_parameters)
         train_loss = train(
             self.net,
             self.trainloader,
             self.local_epochs,
             self.device,
         )
-
-
 
         weights = get_weights(self.net)
         payload_size = float(sum(np.asarray(w).nbytes for w in weights))
@@ -84,22 +75,17 @@ class FlowerClient(NumPyClient):
             if log_enabled:
                 register_logs(
                     file_name=self.client_id,
-                    title="\n Model after flatten:",
-                    value=repr(flat_weights),
+                    title="\n Model flatten details:",
+                    value=f"vector_len={flat_weights.size}",
                 )
             ciphertexts = ckks.encrypt_batch(sk=self.sk, plaintext=flat_weights)
-            encrypted_bytes = 0
-            for ctxt in ciphertexts:
-                c0 = np.asarray(ctxt.c0.coefficients, dtype=np.int64)
-                c1 = np.asarray(ctxt.c1.coefficients, dtype=np.int64)
-                encrypted_bytes += c0.nbytes + c1.nbytes
+            weights, encrypted_bytes = ckks.serialize_ciphertexts(ciphertexts)
             payload_size = float(encrypted_bytes)
-            weights = ckks.extract_vector(ciphertexts)
             if log_enabled:
                 register_logs(
                     file_name=self.client_id,
-                    title="\n Model encripted vector:",
-                    value=repr(weights),
+                    title="\n Encryption summary:",
+                    value=f"ciphertexts={len(weights)} payload_bytes={payload_size}",
                 )
 
         end = time.time()
@@ -119,19 +105,20 @@ class FlowerClient(NumPyClient):
             register_logs(
                 file_name=self.client_id,
                 title=f"\n ------------- Round (evaluate) {config['server_round']} -------------- \n",
-                value="",
-            )
-            register_logs(
-                file_name=self.client_id,
-                title="\nModel Received:",
-                value=repr(parameters[0]),
+                value=f"received_tensors={len(parameters)}",
             )
 
-        if self.is_flattened and config.get("is_flattened"):
-            parameters = parameters[0]
-            parameters = unflatten(parameters, self.structure)
+        model_parameters = parameters
+        if (
+            self.is_flattened
+            and config.get("is_flattened")
+            and len(parameters) == 1
+            and parameters[0].ndim == 1
+            and parameters[0].size == self.size_flattened
+        ):
+            model_parameters = unflatten(parameters[0], self.structure)
 
-        set_weights(self.net, parameters)
+        set_weights(self.net, model_parameters)
         loss, accuracy = test(self.net, self.valloader, self.device)
         return loss, len(self.valloader.dataset), {"accuracy": accuracy}
 
