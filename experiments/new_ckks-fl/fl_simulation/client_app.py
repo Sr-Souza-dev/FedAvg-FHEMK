@@ -81,7 +81,6 @@ class FlowerClient(NumPyClient):
 
         if self.is_flattened:
             flat_weights = flatten(weights)
-            payload_size = float(flat_weights.nbytes)
             if log_enabled:
                 register_logs(
                     file_name=self.client_id,
@@ -89,6 +88,12 @@ class FlowerClient(NumPyClient):
                     value=repr(flat_weights),
                 )
             ciphertexts = ckks.encrypt_batch(sk=self.sk, plaintext=flat_weights)
+            encrypted_bytes = 0
+            for ctxt in ciphertexts:
+                c0 = np.asarray(ctxt.c0.coefficients, dtype=np.int64)
+                c1 = np.asarray(ctxt.c1.coefficients, dtype=np.int64)
+                encrypted_bytes += c0.nbytes + c1.nbytes
+            payload_size = float(encrypted_bytes)
             weights = ckks.extract_vector(ciphertexts)
             if log_enabled:
                 register_logs(

@@ -52,7 +52,7 @@ class FlowerClient(NumPyClient):
             flat = flatten_weights(updated_weights)
             payload = self.ckks_context.encrypt_vector(self.he, flat)
             weights_payload = payload
-            payload_size = sum(block.nbytes for block in payload)
+            payload_size = sum(block.nbytes for block in payload[1:])
         else:
             weights_payload = updated_weights
             payload_size = sum(np.asarray(weight).nbytes for weight in updated_weights)

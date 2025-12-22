@@ -14,6 +14,7 @@ OUTPUT_DIR = BASE_DIR / "output"
 PLOTS_DIR = BASE_DIR / "plots"
 BACKUP_DIR = BASE_DIR / "backup"
 ANALYSIS_SCRIPT = BASE_DIR / "generate_analysis.py"
+REQUIREMENTS = BASE_DIR / "requirements.txt"
 
 
 def ensure_dir(path: Path) -> None:
@@ -81,7 +82,10 @@ def run_analysis() -> None:
         print("Nao encontrei generate_analysis.py; pulei a etapa de analise.")
         return
     print("\n=== Executando analise final ===")
-    result = subprocess.run([sys.executable, str(ANALYSIS_SCRIPT)])
+    python_exec = re.venv_python()
+    if not python_exec.exists():
+        raise RuntimeError("Ambiente virtual nao encontrado; impossivel executar as analises.")
+    result = subprocess.run([str(python_exec), str(ANALYSIS_SCRIPT)])
     if result.returncode != 0:
         raise RuntimeError("Falha ao executar generate_analysis.py")
 
@@ -111,16 +115,35 @@ def prepare_workspace() -> int:
     return next_run_number
 
 
+def install_dependencies() -> None:
+    """Install project dependencies inside the virtual environment."""
+    py_path = re.venv_python()
+    if not py_path.exists():
+        print("Ambiente virtual nao encontrado. Execute `python -m venv .venv` na raiz primeiro.")
+        sys.exit(1)
+    print("Instalando dependencias no ambiente virtual...")
+    install_cmd = [str(py_path), "-m", "pip", "install", "-r", str(REQUIREMENTS)]
+    result = subprocess.run(install_cmd)
+    if result.returncode != 0:
+        print("Falha ao instalar dependencias. Verifique o log acima.")
+        sys.exit(result.returncode)
+
+
 def main() -> None:
-    # Prepare environment and ensure dependencies installed
-    re.ensure_environment()
+    # 1. Mover resultados anteriores e preparar diretórios vazios
+    next_run_number = prepare_workspace()
+
+    # 2. Instalar dependências
+    install_dependencies()
+
+    # 3. Garantir execução dentro do ambiente e desativar logs
     os.environ[re.ENV_FLAG] = "1"
+    re.ensure_environment()
     os.environ["AQUIPLACA_ENABLE_LOGS"] = "0"
     re.set_logging_flag(False)
 
+    # 4. Perguntar quantas execuções completas serão feitas
     total_runs = prompt_iterations()
-
-    next_run_number = prepare_workspace()
 
     experiment_items = list(re.EXPERIMENTS.items())
 

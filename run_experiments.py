@@ -99,6 +99,11 @@ def run_experiment(key: str) -> None:
     print(f"\n=== Iniciando {name} ===")
     child_env = os.environ.copy()
     child_env[EXPERIMENT_ENV_FLAG] = path.name
+    existing_pythonpath = child_env.get("PYTHONPATH", "")
+    path_entries = [str(path)]
+    if existing_pythonpath:
+        path_entries.append(existing_pythonpath)
+    child_env["PYTHONPATH"] = os.pathsep.join(path_entries)
     if _RAY_AVAILABLE:
         cmd = ["flwr", "run", "."]
     else:

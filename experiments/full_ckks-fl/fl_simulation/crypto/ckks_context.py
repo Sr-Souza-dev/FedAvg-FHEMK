@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Sequence, Tuple
+from typing import Iterable, List, Sequence, Tuple, Optional
 
 import numpy as np
 from Pyfhel import PyCtxt, Pyfhel
@@ -10,9 +10,9 @@ from Pyfhel import PyCtxt, Pyfhel
 
 @dataclass
 class CKKSConfig:
-    poly_mod_degree: int = 2 ** 13
+    poly_mod_degree: int = 2 ** 14
     scale: float = 2 ** 30
-    qi_sizes: Sequence[int] = (60, 40, 40, 40, 40)
+    qi_sizes: Optional[Sequence[int]] = (60, 40, 40, 40, 60)
 
 
 class SharedCKKSContext:
@@ -32,24 +32,25 @@ class SharedCKKSContext:
     # Context bootstrap
     # ------------------------------------------------------------------
     def ensure_keys(self) -> None:
-        if all(
-            path.exists()
-            for path in [
-                self._ctx_file,
-                self._pk_file,
-                self._sk_file,
-                self._relin_file,
-                self._rotate_file,
-            ]
-        ):
+        expected = [
+            self._ctx_file,
+            self._pk_file,
+            self._sk_file,
+            self._relin_file,
+            self._rotate_file,
+        ]
+        if all(path.exists() for path in expected):
             return
+        self._clear_existing_keys()
         he = Pyfhel()
-        he.contextGen(
-            scheme="CKKS",
-            n=self.config.poly_mod_degree,
-            scale=self.config.scale,
-            qi_sizes=list(self.config.qi_sizes),
-        )
+        context_kwargs = {
+            "scheme": "CKKS",
+            "n": self.config.poly_mod_degree,
+            "scale": self.config.scale,
+        }
+        if self.config.qi_sizes:
+            context_kwargs["qi_sizes"] = list(self.config.qi_sizes)
+        he.contextGen(**context_kwargs)
         he.keyGen()
         he.relinKeyGen()
         he.rotateKeyGen()
@@ -70,6 +71,17 @@ class SharedCKKSContext:
             he.load_secret_key(str(self._sk_file))
         return he
 
+    def _clear_existing_keys(self) -> None:
+        for file in [
+            self._ctx_file,
+            self._pk_file,
+            self._sk_file,
+            self._relin_file,
+            self._rotate_file,
+        ]:
+            if file.exists():
+                file.unlink()
+
     @property
     def slot_count(self) -> int:
         return self.config.poly_mod_degree // 2
@@ -83,7 +95,8 @@ class SharedCKKSContext:
         chunks = self._chunks(vec)
         payload: List[np.ndarray] = [np.array([len(vec)], dtype=np.int64)]
         for chunk in chunks:
-            ctxt = he.encryptFrac(chunk.tolist())
+            chunk = np.asarray(chunk, dtype=np.float64)
+            ctxt = he.encryptFrac(chunk)
             payload.append(self._serialize_ciphertext(ctxt))
         return payload
 
@@ -101,7 +114,9 @@ class SharedCKKSContext:
         original_len = int(np.asarray(payload[0], dtype=np.int64)[0])
         ctxts: List[PyCtxt] = []
         for blob in payload[1:]:
-            ctxts.append(PyCtxt(pyfhel=he, serialized=blob.tobytes()))
+            ctxt = PyCtxt(pyfhel=he)
+            ctxt.from_bytes(blob.tobytes())
+            ctxts.append(ctxt)
         return ctxts, original_len
 
     def serialize_ciphertexts(self, ciphertexts: Iterable[PyCtxt], original_length: int) -> List[np.ndarray]:

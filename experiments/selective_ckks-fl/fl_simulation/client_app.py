@@ -86,8 +86,8 @@ class SelectiveClient(NumPyClient):
         proposal_limit = max(mask_target, 1) * int(round(proposal_multiplier))
         proposal_payload = encode_mask_scores(mask_proposal_scores(importance, proposal_limit))
 
-        payload = self._build_payload(flat_trained, mask_indices)
-        payload_size = sum(block.nbytes for block in payload)
+        payload, plain_bytes, encrypted_bytes = self._build_payload(flat_trained, mask_indices)
+        payload_size = plain_bytes + encrypted_bytes
 
         self.exposed_vector = finalize_exposed_after_training(exposed_before, flat_trained, mask_bool)
 
@@ -95,6 +95,8 @@ class SelectiveClient(NumPyClient):
             "train_loss": float(train_loss),
             "execution_time": float(time.time() - start_time),
             "size": float(payload_size),
+            "size_plain": float(plain_bytes),
+            "size_encrypted": float(encrypted_bytes),
             "mask_scores": proposal_payload,
             "mask_version": int(config.get("mask-version", 0)),
         }
@@ -115,14 +117,20 @@ class SelectiveClient(NumPyClient):
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
-    def _build_payload(self, flat_weights: np.ndarray, mask_indices: np.ndarray) -> List[np.ndarray]:
+    def _build_payload(
+        self,
+        flat_weights: np.ndarray,
+        mask_indices: np.ndarray,
+    ) -> tuple[List[np.ndarray], int, int]:
         mask_indices = np.asarray(mask_indices, dtype=np.int64)
         mask_len = mask_indices.size
         total_len = flat_weights.size
         mask_bool = boolean_mask(mask_indices, total_len)
         plain_indices = np.where(~mask_bool)[0]
-        plain_values = flat_weights[plain_indices].astype(np.float64, copy=True)
+        plain_values = flat_weights[plain_indices].astype(np.float32, copy=True)
         masked_values = flat_weights[mask_bool].astype(np.float64, copy=True)
+        plain_bytes = int(plain_values.nbytes)
+
 
         payload: List[np.ndarray] = [
             np.array([total_len, mask_len], dtype=np.int64),
@@ -131,14 +139,16 @@ class SelectiveClient(NumPyClient):
         ]
 
         if mask_len == 0:
-            return payload
+            return payload, plain_bytes, 0
 
         if not self.encrypted_updates or self.ckks_context is None or self.he is None:
             raise RuntimeError("Encryption disabled but mask is non-empty; selective CKKS requires encryption.")
 
         encrypted_payload = self.ckks_context.encrypt_vector(self.he, masked_values)
         payload.extend(encrypted_payload)
-        return payload
+        encrypted_bytes = int(sum(block.nbytes for block in encrypted_payload[1:]))
+
+        return payload, plain_bytes, encrypted_bytes
 
 
 def client_fn(context: Context):
