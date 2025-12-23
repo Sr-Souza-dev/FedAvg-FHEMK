@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """Helper script to launch the CKKS Flower experiments."""
 
 from __future__ import annotations
@@ -7,29 +7,64 @@ import importlib.util
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable
 
 from experiment_config import get_experiment_config
+from models.registry import MODEL_ENV_VAR, ModelSpec, list_models
 
 BASE_DIR = Path(__file__).resolve().parent
 EXPERIMENTS_ROOT = BASE_DIR / "experiments"
-EXPERIMENTS = {
-    "1": ("baseline-fl (sem criptografia)", EXPERIMENTS_ROOT / "baseline-fl"),
-    "2": ("new_ckks-fl (baseline CKKS)", EXPERIMENTS_ROOT / "new_ckks-fl"),
-    "3": ("full_ckks-fl (Pyfhel FHE)", EXPERIMENTS_ROOT / "full_ckks-fl"),
-    "4": ("selective_ckks-fl (Mask-guided CKKS)", EXPERIMENTS_ROOT / "selective_ckks-fl"),
-}
-MENU = """Escolha qual experimento deseja executar:
-  1 - baseline-fl (sem criptografia)
-  2 - new_ckks-fl (baseline CKKS)
-  3 - full_ckks-fl (Pyfhel FHE)
-  4 - selective_ckks-fl (mask-guided CKKS)
-  5 - Todos (executa em sequencia)
-Digite sua opcao (1/2/3/4/5): """
+SELECTIVE_PATH = EXPERIMENTS_ROOT / "selective_ckks-fl"
+
+
+@dataclass(frozen=True)
+class ExperimentEntry:
+    key: str
+    label: str
+    path: Path
+    env_name: str
+    mask_ratio: float | None = None
+
+
+EXPERIMENTS: tuple[ExperimentEntry, ...] = (
+    ExperimentEntry("1", "baseline-fl (sem criptografia)", EXPERIMENTS_ROOT / "baseline-fl", "baseline-fl"),
+    ExperimentEntry("2", "new_ckks-fl (baseline CKKS)", EXPERIMENTS_ROOT / "new_ckks-fl", "new_ckks-fl"),
+    ExperimentEntry("3", "full_ckks-fl (Pyfhel FHE)", EXPERIMENTS_ROOT / "full_ckks-fl", "full_ckks-fl"),
+    ExperimentEntry("4", "selective_ckks-fl (mask 10%)", SELECTIVE_PATH, "selective_ckks-fl-10", 0.10),
+    ExperimentEntry("5", "selective_ckks-fl (mask 20%)", SELECTIVE_PATH, "selective_ckks-fl-20", 0.20),
+    ExperimentEntry("6", "selective_ckks-fl (mask 40%)", SELECTIVE_PATH, "selective_ckks-fl-40", 0.40),
+    ExperimentEntry("7", "selective_ckks-fl (mask 80%)", SELECTIVE_PATH, "selective_ckks-fl-80", 0.80),
+)
+EXPERIMENT_LOOKUP = {entry.key: entry for entry in EXPERIMENTS}
+MODEL_OPTIONS: tuple[ModelSpec, ...] = tuple(list_models())
+
+
+def _build_menu(options: Iterable[ExperimentEntry]) -> str:
+    lines = ["Escolha qual experimento deseja executar:"]
+    for entry in options:
+        lines.append(f"  {entry.key} - {entry.label}")
+    lines.append("  0 - Todos (executa em sequencia)")
+    available = "/".join(entry.key for entry in options)
+    lines.append(f"Digite sua opcao (0/{available}): ")
+    return "\n".join(lines)
+
+
+MENU = _build_menu(EXPERIMENTS)
+MODEL_MENU = "\n".join(
+    ["Escolha o modelo para os experimentos:"]
+    + [
+        f"  {idx} - {spec.label} ({spec.name})"
+        for idx, spec in enumerate(MODEL_OPTIONS, start=1)
+    ]
+    + ["Digite sua opcao: "]
+)
 
 ENV_FLAG = "RUN_EXPERIMENTS_IN_VENV"
 LOGGING_ENV_FLAG = "AQUIPLACA_ENABLE_LOGS"
 EXPERIMENT_ENV_FLAG = "AQUIPLACA_EXPERIMENT_NAME"
+MASK_RATIO_ENV_FLAG = "AQUIPLACA_MASK_RATIO"
 _RAY_AVAILABLE = importlib.util.find_spec("ray") is not None
 
 
@@ -90,17 +125,34 @@ def set_logging_flag(enabled: bool) -> None:
     os.environ[LOGGING_ENV_FLAG] = "1" if enabled else "0"
 
 
-def run_experiment(key: str) -> None:
-    name, path = EXPERIMENTS[key]
-    if not path.exists():
-        print(f"[ERRO] Diretorio do experimento '{name}' nao encontrado em {path}")
+def ask_model_choice() -> ModelSpec:
+    if not MODEL_OPTIONS:
+        raise RuntimeError("Nenhum modelo disponivel para execucao.")
+    while True:
+        choice = input(MODEL_MENU).strip()
+        if choice.isdigit():
+            idx = int(choice)
+            if 1 <= idx <= len(MODEL_OPTIONS):
+                return MODEL_OPTIONS[idx - 1]
+        print("Opcao invalida. Escolha um dos indices listados.")
+
+
+def run_experiment(entry: ExperimentEntry, model: ModelSpec | str) -> None:
+    if not entry.path.exists():
+        print(f"[ERRO] Diretorio do experimento '{entry.label}' nao encontrado em {entry.path}")
         sys.exit(1)
-    shared_cfg = get_experiment_config(path.name)
-    print(f"\n=== Iniciando {name} ===")
+    shared_cfg = get_experiment_config(entry.env_name)
+    model_name = model.name if isinstance(model, ModelSpec) else str(model)
+    print(f"\n=== Iniciando {entry.label} [{model_name}] ===")
     child_env = os.environ.copy()
-    child_env[EXPERIMENT_ENV_FLAG] = path.name
+    child_env[EXPERIMENT_ENV_FLAG] = entry.env_name
+    child_env[MODEL_ENV_VAR] = model_name
+    if entry.mask_ratio is not None:
+        child_env[MASK_RATIO_ENV_FLAG] = str(entry.mask_ratio)
+    else:
+        child_env.pop(MASK_RATIO_ENV_FLAG, None)
     existing_pythonpath = child_env.get("PYTHONPATH", "")
-    path_entries = [str(path)]
+    path_entries = [str(entry.path)]
     if existing_pythonpath:
         path_entries.append(existing_pythonpath)
     child_env["PYTHONPATH"] = os.pathsep.join(path_entries)
@@ -120,9 +172,9 @@ def run_experiment(key: str) -> None:
             "--backend",
             "inline",
         ]
-    result = subprocess.run(cmd, cwd=path, env=child_env)
+    result = subprocess.run(cmd, cwd=entry.path, env=child_env)
     if result.returncode != 0:
-        print(f"[ERRO] Execucao de '{name}' falhou (codigo {result.returncode}).")
+        print(f"[ERRO] Execucao de '{entry.label}' falhou (codigo {result.returncode}).")
         sys.exit(result.returncode)
 
 
@@ -130,12 +182,14 @@ def main() -> None:
     ensure_environment()
     logging_enabled = ask_logging_preference()
     set_logging_flag(logging_enabled)
+    selected_model = ask_model_choice()
+    os.environ[MODEL_ENV_VAR] = selected_model.name
     choice = input(MENU).strip()
-    if choice in EXPERIMENTS:
-        run_experiment(choice)
-    elif choice == "5":
-        for key in EXPERIMENTS:
-            run_experiment(key)
+    if choice == "0":
+        for entry in EXPERIMENTS:
+            run_experiment(entry, selected_model)
+    elif choice in EXPERIMENT_LOOKUP:
+        run_experiment(EXPERIMENT_LOOKUP[choice], selected_model)
     else:
         print("Opcao invalida. Encerrando.")
         sys.exit(1)

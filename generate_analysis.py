@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 from analysis import run_full_analysis
+from models.registry import get_model_spec
 
 
 def main() -> None:
     summary = run_full_analysis()
+    model_spec = get_model_spec()
     experiments = summary.get("experiments", [])
-    print("=== Analise de Resultados ===")
+    print(f"=== Analise de Resultados ({model_spec.label}) ===")
     if not experiments:
         print("Nao encontrei execucoes em output/. Execute os experimentos primeiro.")
         return

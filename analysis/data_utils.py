@@ -6,25 +6,31 @@ from typing import Iterable, List, Sequence
 import math
 import shutil
 
-from utils.files import OUTPUT_DIR, ROOT_DIR
+from utils.files import current_output_root, current_plots_root
 
 METRIC_EXTENSION = ".dat"
-PLOTS_DIR = ROOT_DIR / "plots"
+def output_dir() -> Path:
+    return current_output_root()
+
+
+def plots_dir() -> Path:
+    return current_plots_root()
 
 
 def list_experiments() -> list[str]:
-    if not OUTPUT_DIR.exists():
+    base = output_dir()
+    if not base.exists():
         return []
     experiments = [
         path.name
-        for path in OUTPUT_DIR.iterdir()
+        for path in base.iterdir()
         if path.is_dir() and not path.name.startswith(".")
     ]
     return sorted(experiments)
 
 
 def run_directories(experiment: str) -> list[Path]:
-    base_dir = OUTPUT_DIR / experiment
+    base_dir = output_dir() / experiment
     if not base_dir.exists():
         return []
     runs = [
@@ -36,7 +42,7 @@ def run_directories(experiment: str) -> list[Path]:
 
 
 def average_directory(experiment: str) -> Path:
-    return OUTPUT_DIR / experiment / "average"
+    return output_dir() / experiment / "average"
 
 
 def ensure_clean_directory(path: Path) -> Path:
@@ -103,12 +109,35 @@ class MetricPlotConfig:
     ylabel: str
 
 
+@dataclass(frozen=True)
+class ExperimentStyle:
+    display_name: str
+    color: str
+
+
 DEFAULT_METRICS: dict[str, MetricPlotConfig] = {
     "loss": MetricPlotConfig(name="loss", title="Loss de Treino", ylabel="Loss"),
     "accuracy": MetricPlotConfig(name="accuracy", title="Acuracia", ylabel="Acuracia"),
     "time": MetricPlotConfig(name="time", title="Tempo de Execucao", ylabel="Tempo (s)"),
     "size": MetricPlotConfig(name="size", title="Tamanho de Payload", ylabel="Tamanho (bytes)"),
 }
+
+
+EXPERIMENT_STYLES: dict[str, ExperimentStyle] = {
+    "baseline-fl": ExperimentStyle("Baseline", "#1f77b4"),
+    "new_ckks-fl": ExperimentStyle("MK-FHE", "#ff7f0e"),
+    "full_ckks-fl": ExperimentStyle("FHE", "#2ca02c"),
+    "selective_ckks-fl-10": ExperimentStyle("M-FHE 10%", "#d62728"),
+    "selective_ckks-fl-20": ExperimentStyle("M-FHE 20%", "#9467bd"),
+    "selective_ckks-fl-40": ExperimentStyle("M-FHE 40%", "#8c564b"),
+    "selective_ckks-fl-80": ExperimentStyle("M-FHE 80%", "#e377c2"),
+}
+
+DEFAULT_EXPERIMENT_STYLE = ExperimentStyle("Experimento", "#7f7f7f")
+
+
+def get_experiment_style(experiment: str) -> ExperimentStyle:
+    return EXPERIMENT_STYLES.get(experiment, DEFAULT_EXPERIMENT_STYLE)
 
 
 def load_metric_series(experiment: str, metric_name: str) -> list[float]:

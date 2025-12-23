@@ -1,1 +1,1 @@
-from model.data_loader import *
+from models.data_loader import *

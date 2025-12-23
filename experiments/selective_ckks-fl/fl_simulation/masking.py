@@ -70,6 +70,7 @@ def gradient_snapshot(
     batches_processed = 0
     model.eval()
     data_iter = iter(dataloader)
+    state_names = list(model.state_dict().keys())
     while batches_processed < max_batches:
         try:
             batch = next(data_iter)
@@ -81,10 +82,18 @@ def gradient_snapshot(
         outputs = model(images)
         loss = criterion(outputs, labels)
         loss.backward()
-        grad_vector = flatten_weights(
-            (param.grad.detach().cpu().numpy() if param.grad is not None else np.zeros_like(param.detach().cpu().numpy()))
-            for param in model.parameters()
-        )
+        grad_map = {
+            name: (param.grad.detach().cpu().numpy() if param.grad is not None else np.zeros_like(param.detach().cpu().numpy()))
+            for name, param in model.named_parameters()
+        }
+        aligned_grads = []
+        for name in state_names:
+            if name in grad_map:
+                aligned_grads.append(grad_map[name])
+            else:
+                tensor = model.state_dict()[name]
+                aligned_grads.append(torch.zeros_like(tensor).cpu().numpy())
+        grad_vector = flatten_weights(aligned_grads)
         grads_accumulator = (
             grad_vector.copy()
             if grads_accumulator is None

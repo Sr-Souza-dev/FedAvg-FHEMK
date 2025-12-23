@@ -7,13 +7,32 @@ import re
 import shutil
 from threading import Lock
 
+from models.registry import ModelSpec, get_model_spec
+
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT_DIR / "output"
+PLOTS_ROOT = ROOT_DIR / "plots"
 LOGS_DIR = ROOT_DIR / "logs"
 EXPERIMENT_ENV_VAR = "AQUIPLACA_EXPERIMENT_NAME"
 LOGGING_ENV_VAR = "AQUIPLACA_ENABLE_LOGS"
 _RUN_ID_LOCK = Lock()
+
+
+def current_model_spec(model_name: str | None = None) -> ModelSpec:
+    return get_model_spec(model_name)
+
+
+def current_model_name(model_name: str | None = None) -> str:
+    return current_model_spec(model_name).name
+
+
+def current_output_root(model_name: str | None = None) -> Path:
+    return _ensure_dir(OUTPUT_DIR / current_model_name(model_name))
+
+
+def current_plots_root(model_name: str | None = None) -> Path:
+    return _ensure_dir(PLOTS_ROOT / current_model_name(model_name))
 
 
 def _sanitize_experiment_name(name: str) -> str:
@@ -28,12 +47,17 @@ def _resolve_experiment_name(explicit: str | None = None) -> str:
     return _sanitize_experiment_name(candidate or "default")
 
 
-def current_logs_dir() -> Path:
-    """Return the log directory for the active experiment."""
-    experiment = os.environ.get(EXPERIMENT_ENV_VAR, "").strip()
-    if not experiment:
-        return LOGS_DIR / "default"
-    return LOGS_DIR / _sanitize_experiment_name(experiment)
+def current_logs_root(model_name: str | None = None) -> Path:
+    return _ensure_dir(LOGS_DIR / current_model_name(model_name))
+
+
+def current_logs_dir(experiment: str | None = None) -> Path:
+    """Return the log directory for the active experiment, namespaced by model."""
+    root = current_logs_root()
+    exp_name = experiment or os.environ.get(EXPERIMENT_ENV_VAR, "").strip()
+    if not exp_name:
+        return _ensure_dir(root / "default")
+    return _ensure_dir(root / _sanitize_experiment_name(exp_name))
 
 
 def logging_enabled() -> bool:
@@ -50,7 +74,7 @@ def _ensure_dir(path: Path) -> Path:
 def next_run_id(experiment: str) -> str:
     """Return the next sequential run identifier (1,2,3,...) for the experiment."""
     sanitized = _resolve_experiment_name(experiment)
-    experiment_dir = _ensure_dir(OUTPUT_DIR / sanitized)
+    experiment_dir = _ensure_dir(current_output_root() / sanitized)
     with _RUN_ID_LOCK:
         numeric_runs = [
             int(entry.name)
@@ -66,7 +90,7 @@ def experiment_output_dir(
     execution_id: str,
     subdir: str = "",
 ) -> Path:
-    experiment_dir = _ensure_dir(OUTPUT_DIR / _resolve_experiment_name(experiment))
+    experiment_dir = _ensure_dir(current_output_root() / _resolve_experiment_name(experiment))
     run_label = str(execution_id).strip()
     if not run_label:
         raise ValueError("execution_id cannot be empty; provide a run identifier.")
@@ -90,7 +114,7 @@ def write_numbers_to_file(
         base_path = kwargs.pop("basePath")
     if "type" in kwargs:
         extension = kwargs.pop("type")
-    target_dir = _ensure_dir(Path(base_path)) if base_path else _ensure_dir(OUTPUT_DIR)
+    target_dir = _ensure_dir(Path(base_path)) if base_path else current_output_root()
     if not filename.endswith(extension):
         filename += extension
     full_path = target_dir / filename
@@ -109,7 +133,7 @@ def load_numbers_file(
         base_path = kwargs.pop("basePath")
     if "type" in kwargs:
         extension = kwargs.pop("type")
-    target_dir = Path(base_path) if base_path else OUTPUT_DIR
+    target_dir = Path(base_path) if base_path else current_output_root()
     if not filename.endswith(extension):
         filename += extension
     full_path = target_dir / filename

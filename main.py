@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import run_experiments as re
+from models.registry import MODEL_ENV_VAR, ModelSpec, list_models
 
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "output"
@@ -77,15 +78,17 @@ def prompt_iterations() -> int:
         return value
 
 
-def run_analysis() -> None:
+def run_analysis(model: ModelSpec) -> None:
     if not ANALYSIS_SCRIPT.exists():
         print("Nao encontrei generate_analysis.py; pulei a etapa de analise.")
         return
-    print("\n=== Executando analise final ===")
+    print(f"\n=== Executando analise final para {model.label} ===")
     python_exec = re.venv_python()
     if not python_exec.exists():
         raise RuntimeError("Ambiente virtual nao encontrado; impossivel executar as analises.")
-    result = subprocess.run([str(python_exec), str(ANALYSIS_SCRIPT)])
+    env = os.environ.copy()
+    env[MODEL_ENV_VAR] = model.name
+    result = subprocess.run([str(python_exec), str(ANALYSIS_SCRIPT)], env=env)
     if result.returncode != 0:
         raise RuntimeError("Falha ao executar generate_analysis.py")
 
@@ -145,15 +148,20 @@ def main() -> None:
     # 4. Perguntar quantas execuções completas serão feitas
     total_runs = prompt_iterations()
 
-    experiment_items = list(re.EXPERIMENTS.items())
+    experiment_items = list(re.EXPERIMENTS)
+    model_specs = list(list_models())
+    if not model_specs:
+        raise RuntimeError("Nenhum modelo disponivel para execucao.")
 
-    for iteration in range(1, total_runs + 1):
-        print(f"\n=== Execucao {iteration} de {total_runs} ===")
-        for key, (label, _) in experiment_items:
-            print(f"\n--- Executando {label} ---")
-            re.run_experiment(key)
-
-    run_analysis()
+    for model in model_specs:
+        os.environ[MODEL_ENV_VAR] = model.name
+        print(f"\n=== Modelo: {model.label} ({model.name}) ===")
+        for iteration in range(1, total_runs + 1):
+            print(f"\n=== Execucao {iteration} de {total_runs} ({model.label}) ===")
+            for entry in experiment_items:
+                print(f"\n--- Executando {entry.label} ---")
+                re.run_experiment(entry, model)
+        run_analysis(model)
     if archive_results(next_run_number, move=False):
         print(f"Resultados atuais copiados para backup/run_{next_run_number}.")
 

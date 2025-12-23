@@ -1,16 +1,24 @@
 from __future__ import annotations
 
+import os
 from typing import Dict, List, Tuple
 
 from flwr.common import Context, Metrics, ndarrays_to_parameters
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 
 from experiment_config import get_experiment_config
-from model.model import Net, get_weights
+from models.model import Net, get_weights
 from fl_simulation.strategies.selective_fed_avg import SelectiveHomomorphicFedAvg
-from utils.files import experiment_output_dir, next_run_id, write_numbers_to_file
+from utils.files import (
+    EXPERIMENT_ENV_VAR,
+    experiment_output_dir,
+    next_run_id,
+    write_numbers_to_file,
+)
 
-EXPERIMENT_NAME = "selective_ckks-fl"
+MASK_RATIO_ENV = "AQUIPLACA_MASK_RATIO"
+DEFAULT_EXPERIMENT = "selective_ckks-fl"
+EXPERIMENT_NAME = os.environ.get(EXPERIMENT_ENV_VAR, DEFAULT_EXPERIMENT) or DEFAULT_EXPERIMENT
 execution_id = ""
 current_encrypted = True
 EXPERIMENT_CONFIG = get_experiment_config(EXPERIMENT_NAME)
@@ -55,13 +63,23 @@ def evaluate_metrics_aggregation(metrics: List[Tuple[int, Metrics]]) -> Metrics:
     return {"accuracy": accuracy}
 
 
+def _resolve_mask_ratio(run_cfg: Dict[str, float]) -> float:
+    env_value = os.environ.get(MASK_RATIO_ENV)
+    if env_value:
+        try:
+            return float(env_value)
+        except ValueError as exc:
+            raise RuntimeError(f"Invalid mask ratio override '{env_value}'") from exc
+    return float(run_cfg.get("mask-ratio", 0.15))
+
+
 def server_fn(context: Context) -> ServerAppComponents:
     global execution_id, current_encrypted
     run_cfg = context.run_config
     current_encrypted = run_cfg["is-encrypted"] == 1
     execution_id = next_run_id(EXPERIMENT_NAME)
 
-    mask_ratio = float(run_cfg.get("mask-ratio", 0.15))
+    mask_ratio = _resolve_mask_ratio(run_cfg)
     proposal_multiplier = float(run_cfg.get("mask-proposal-multiplier", 3.0))
 
     init_weights = get_weights(Net())

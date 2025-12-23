@@ -7,10 +7,15 @@ from typing import Dict
 
 import numpy as np
 
-from .data_utils import DEFAULT_METRICS, PLOTS_DIR, ensure_directory, load_metric_series
+from .data_utils import DEFAULT_METRICS, ensure_directory, load_metric_series, plots_dir
 
-ANALYSIS_DIR = PLOTS_DIR / "analysis"
-SUMMARY_CSV = ANALYSIS_DIR / "metrics_summary.csv"
+
+def analysis_dir() -> Path:
+    return plots_dir() / "analysis"
+
+
+def summary_csv_path() -> Path:
+    return analysis_dir() / "metrics_summary.csv"
 
 
 def _safe_array(values: list[float]) -> np.ndarray:
@@ -34,6 +39,10 @@ def compute_metric_statistics(series: list[float]) -> dict[str, float]:
     arr = _safe_array(series)
     if arr.size == 0:
         return {}
+    try:
+        auc_value = float(np.trapz(arr, dx=1.0))
+    except AttributeError:
+        auc_value = float(np.trapezoid(arr, dx=1.0))
     stats = {
         "count": int(arr.size),
         "mean": float(np.mean(arr)),
@@ -43,7 +52,7 @@ def compute_metric_statistics(series: list[float]) -> dict[str, float]:
         "max": float(np.max(arr)),
         "final": float(arr[-1]),
         "delta": float(arr[-1] - arr[0]),
-        "auc": float(np.trapz(arr, dx=1.0)),
+        "auc": auc_value,
     }
     trend = _compute_trend(arr)
     if trend is not None:
@@ -67,9 +76,10 @@ def compute_all_statistics(experiments: list[str]) -> dict[str, dict[str, dict[s
 
 def save_statistics_table(
     statistics: dict[str, dict[str, dict[str, float]]],
-    output_csv: Path = SUMMARY_CSV,
+    output_csv: Path | None = None,
 ) -> Path:
-    ensure_directory(output_csv.parent)
+    target = output_csv or summary_csv_path()
+    ensure_directory(target.parent)
     fieldnames = [
         "experiment",
         "metric",
@@ -84,7 +94,7 @@ def save_statistics_table(
         "trend",
         "auc",
     ]
-    with output_csv.open("w", newline="", encoding="utf-8") as stream:
+    with target.open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=fieldnames)
         writer.writeheader()
         for experiment, metrics in statistics.items():
@@ -96,4 +106,4 @@ def save_statistics_table(
                         continue
                     row[key] = value
                 writer.writerow(row)
-    return output_csv
+    return target

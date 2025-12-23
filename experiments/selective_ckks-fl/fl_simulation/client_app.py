@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from typing import Any, Dict, List
 
@@ -20,12 +21,13 @@ from fl_simulation.masking import (
     mask_size_from_ratio,
     prepare_exposed_before_training,
 )
-from model.data_loader import load_data
-from model.model import Net, get_weights, set_weights, test, train
-from utils.files import logging_enabled, register_logs
+from models.data_loader import load_data
+from models.model import Net, get_weights, set_weights, test, train
+from utils.files import EXPERIMENT_ENV_VAR, logging_enabled, register_logs
 from utils.weights import flatten_weights
 
-EXPERIMENT_NAME = "selective_ckks-fl"
+DEFAULT_EXPERIMENT = "selective_ckks-fl"
+EXPERIMENT_NAME = os.environ.get(EXPERIMENT_ENV_VAR, DEFAULT_EXPERIMENT) or DEFAULT_EXPERIMENT
 EXPERIMENT_CONFIG = get_experiment_config(EXPERIMENT_NAME)
 
 
