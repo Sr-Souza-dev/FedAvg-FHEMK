@@ -13,3 +13,4 @@ logs/*
 ./**/__pycache__
 ./**/keys/*
 !./**/keys/.gitkeep
+experiments/full_ckks-fl/keys/*.key
