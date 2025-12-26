@@ -212,7 +212,6 @@ class FedAvg(Strategy):
 
                 num_examples = res.num_examples
                 total_examples += num_examples
-                model_enc = [c * num_examples for c in model_enc]
                 weights_cypher.append(model_enc)
 
                 sk_cl = ckks.load_key(prefix=str(client.node_id))

@@ -68,10 +68,13 @@ class FlowerClient(NumPyClient):
         )
 
         weights = get_weights(self.net)
+        num_examples = len(self.trainloader.dataset)
         payload_size = float(sum(np.asarray(w).nbytes for w in weights))
 
         if self.is_flattened:
             flat_weights = flatten(weights)
+            # Scale locally so the server can aggregate ciphertexts directly
+            flat_weights = flat_weights * num_examples
             if log_enabled:
                 register_logs(
                     file_name=self.client_id,
@@ -91,7 +94,7 @@ class FlowerClient(NumPyClient):
         end = time.time()
         return (
             weights,
-            len(self.trainloader.dataset),
+            num_examples,
             {
                 "train_loss": train_loss,
                 "execution_time": end - start,
