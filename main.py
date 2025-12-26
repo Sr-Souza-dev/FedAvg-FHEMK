@@ -162,7 +162,7 @@ def main() -> None:
                 print(f"\n--- Executando {entry.label} ---")
                 re.run_experiment(entry, model)
         run_analysis(model)
-    if archive_results(next_run_number, move=False):
+    if archive_results(next_run_number, move=True):
         print(f"Resultados atuais copiados para backup/run_{next_run_number}.")
 
     print("\nProcesso concluido. Resultados finais permanecem em ./output e ./plots.")
