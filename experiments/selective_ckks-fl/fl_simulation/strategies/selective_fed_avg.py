@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from logging import WARNING
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
@@ -86,6 +87,10 @@ class SelectiveHomomorphicFedAvg(Strategy):
 
         self.ckks_context = build_shared_context() if encrypted else None
         self.he = self.ckks_context.build_he(with_secret=True) if encrypted else None
+        
+        # Timing metrics
+        self.last_aggregation_time = 0.0
+        self.last_server_decrypt_time = 0.0
 
     # ------------------------------------------------------------------
     # Strategy API
@@ -170,15 +175,19 @@ class SelectiveHomomorphicFedAvg(Strategy):
         aggregated_params: Optional[Parameters]
         metrics_aggregated: Dict[str, Scalar] = {}
 
+        # Measure aggregation time
+        agg_start = time.time()
         if self.encrypted and self.he and self.ckks_context:
             aggregated_params = self._aggregate_selective_encrypted(results)
         else:
+            self.last_server_decrypt_time = 0.0
             weights_results = [
                 (parameters_to_ndarrays(res.parameters), res.num_examples)
                 for _, res in results
             ]
             aggregated_ndarrays = aggregate(weights_results)
             aggregated_params = ndarrays_to_parameters(aggregated_ndarrays)
+        self.last_aggregation_time = time.time() - agg_start
 
         if self.fit_metrics_aggregation_fn is not None:
             fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
@@ -273,8 +282,13 @@ class SelectiveHomomorphicFedAvg(Strategy):
             averaged_ciphertexts = self.ckks_context.scale_ciphertexts(
                 encrypted_accumulator, 1.0 / encrypted_examples
             )
+            # Measure server decryption time
+            decrypt_start = time.time()
             decrypted = self.ckks_context.decrypt_vector(self.he, averaged_ciphertexts, reference_mask.size)
+            self.last_server_decrypt_time = time.time() - decrypt_start
             averaged[reference_mask] = decrypted
+        else:
+            self.last_server_decrypt_time = 0.0
 
         weights = unflatten_weights(averaged, self.weight_template)
         return ndarrays_to_parameters(weights)

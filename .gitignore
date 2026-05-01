@@ -3,6 +3,7 @@ logs
 plots
 .venv
 backup
+tables
 __pycache__
 
 experiments/**/keys

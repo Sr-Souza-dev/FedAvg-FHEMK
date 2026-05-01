@@ -118,19 +118,32 @@ class ExperimentStyle:
 DEFAULT_METRICS: dict[str, MetricPlotConfig] = {
     "loss": MetricPlotConfig(name="loss", title="Loss de Treino", ylabel="Loss"),
     "accuracy": MetricPlotConfig(name="accuracy", title="Acuracia", ylabel="Acuracia"),
-    "time": MetricPlotConfig(name="time", title="Tempo de Execucao", ylabel="Tempo (s)"),
-    "size": MetricPlotConfig(name="size", title="Tamanho de Payload", ylabel="Tamanho (bytes)"),
+    "client_execution_time": MetricPlotConfig(name="client_execution_time", title="Tempo Total de Execucao (Cliente)", ylabel="Tempo (s)"),
+    "client_train_time": MetricPlotConfig(name="client_train_time", title="Tempo de Treinamento (Cliente)", ylabel="Tempo (s)"),
+    "client_encrypt_time": MetricPlotConfig(name="client_encrypt_time", title="Tempo de Cifragem (Cliente)", ylabel="Tempo (s)"),
+    "client_decrypt_time": MetricPlotConfig(name="client_decrypt_time", title="Tempo de Decifragem (Cliente)", ylabel="Tempo (s)"),
+    "server_execution_time": MetricPlotConfig(name="server_execution_time", title="Tempo Total de Execucao (Servidor)", ylabel="Tempo (s)"),
+    "server_aggregation_time": MetricPlotConfig(name="server_aggregation_time", title="Tempo de Agregacao (Servidor)", ylabel="Tempo (s)"),
+    "server_decrypt_time": MetricPlotConfig(name="server_decrypt_time", title="Tempo de Decifragem (Servidor)", ylabel="Tempo (s)"),
+    "client_size": MetricPlotConfig(name="client_size", title="Tamanho de Payload (Cliente)", ylabel="Tamanho (bytes)"),
+    "setup_time": MetricPlotConfig(name="setup_time", title="Tempo de Setup (Fase 1)", ylabel="Tempo (s)"),
 }
 
 
 EXPERIMENT_STYLES: dict[str, ExperimentStyle] = {
     "baseline-fl": ExperimentStyle("Baseline", "#1f77b4"),
-    "new_ckks-fl": ExperimentStyle("MK-FHE", "#ff7f0e"),
-    "full_ckks-fl": ExperimentStyle("FHE", "#2ca02c"),
-    "selective_ckks-fl-10": ExperimentStyle("M-FHE 10%", "#d62728"),
-    "selective_ckks-fl-20": ExperimentStyle("M-FHE 20%", "#9467bd"),
-    "selective_ckks-fl-40": ExperimentStyle("M-FHE 40%", "#8c564b"),
-    "selective_ckks-fl-80": ExperimentStyle("M-FHE 80%", "#e377c2"),
+    "new_ckks-fl": ExperimentStyle("FedAvg-CCHMC", "#ff7f0e"),
+    "full_ckks-fl": ExperimentStyle("CCH", "#2ca02c"),
+    "selective_ckks-fl-10": ExperimentStyle("M-CCH 10%", "#d62728"),
+    "selective_ckks-fl-20": ExperimentStyle("M-CCH 20%", "#9467bd"),
+    "selective_ckks-fl-40": ExperimentStyle("M-CCH 40%", "#8c564b"),
+    "selective_ckks-fl-80": ExperimentStyle("M-CCH 80%", "#e377c2"),
+    # Escalabilidade
+    "baseline-fl-p5": ExperimentStyle("Baseline P=5", "#aec7e8"),
+    "baseline-fl-p20": ExperimentStyle("Baseline P=20", "#1f77b4"),
+    "new_ckks-fl-p5": ExperimentStyle("NEWCKKS P=5", "#ffbb78"),
+    "new_ckks-fl-p10": ExperimentStyle("NEWCKKS P=10", "#ff7f0e"),
+    "new_ckks-fl-p20": ExperimentStyle("NEWCKKS P=20", "#d62728"),
 }
 
 DEFAULT_EXPERIMENT_STYLE = ExperimentStyle("Experimento", "#7f7f7f")

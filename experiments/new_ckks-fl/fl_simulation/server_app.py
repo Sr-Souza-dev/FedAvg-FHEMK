@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """fl-simulation: A Flower / PyTorch app."""
 
+import time
 from typing import List, Tuple
 
 from flwr.common import Context, Metrics, ndarrays_to_parameters
@@ -23,6 +24,7 @@ from utils.flatten import flatten
 EXPERIMENT_NAME = "new_ckks-fl"
 execution_id = ""
 is_flattened = True
+current_strategy: FedAvg | None = None  # Store strategy reference
 EXPERIMENT_CONFIG = get_experiment_config(EXPERIMENT_NAME)
 
 
@@ -58,15 +60,27 @@ def fit_metrics_aggregation(metrics: List[Tuple[int, Metrics]]) -> Metrics:
     def _series(key: str) -> list[float]:
         return [m.get(key, 0.0) for _, m in metrics] + [_aggregate(key)]
 
+    # Get server-side timing from strategy
+    server_aggregation_time = current_strategy.last_aggregation_time if current_strategy else 0.0
+    server_decrypt_time = current_strategy.last_server_decrypt_time if current_strategy else 0.0
+    server_execution_time = server_aggregation_time + server_decrypt_time
+
+    # Write all metrics with proper prefixes
     write_numbers_to_file("loss", [_series("train_loss")], base_path=base_path)
-    write_numbers_to_file("time", [_series("execution_time")], base_path=base_path)
-    write_numbers_to_file("size", [_series("size")], base_path=base_path)
+    write_numbers_to_file("client_train_time", [_series("train_time")], base_path=base_path)
+    write_numbers_to_file("client_encrypt_time", [_series("encrypt_time")], base_path=base_path)
+    write_numbers_to_file("client_decrypt_time", [_series("decrypt_time")], base_path=base_path)
+    write_numbers_to_file("client_execution_time", [_series("execution_time")], base_path=base_path)
+    write_numbers_to_file("client_size", [_series("size")], base_path=base_path)
+    write_numbers_to_file("server_aggregation_time", [[server_aggregation_time]], base_path=base_path)
+    write_numbers_to_file("server_decrypt_time", [[server_decrypt_time]], base_path=base_path)
+    write_numbers_to_file("server_execution_time", [[server_execution_time]], base_path=base_path)
 
     return {"train_loss": _aggregate("train_loss")}
 
 
 def server_fn(context: Context):
-    global ckks, is_flattened, execution_id
+    global ckks, is_flattened, execution_id, current_strategy
 
     num_rounds = EXPERIMENT_CONFIG.num_rounds
     fraction_fit = context.run_config["fraction-fit"]
@@ -83,6 +97,15 @@ def server_fn(context: Context):
     delete_directory_files(current_logs_dir())
     delete_directory_files("public/")
 
+    # Measure Phase 1 (setup) time: key generation for the server aggregated key.
+    # The server-side setup consists of generating the initial CRS and the fixed 'a' polynomial.
+    setup_start = time.time()
+    ckks.gen_new_fixed_a()
+    setup_time = time.time() - setup_start
+    base_path = str(experiment_output_dir(EXPERIMENT_NAME, is_flattened, execution_id))
+    write_numbers_to_file("setup_time", [[setup_time]], base_path=base_path)
+    print(f"Setup (Phase 1) time: {setup_time:.4f}s")
+
     strategy = FedAvg(
         fraction_fit=fraction_fit,
         fraction_evaluate=fraction_evaluate,
@@ -92,6 +115,8 @@ def server_fn(context: Context):
         evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation,
         fit_metrics_aggregation_fn=fit_metrics_aggregation,
     )
+    current_strategy = strategy  # Store reference for timing access
+    
     config = ServerConfig(num_rounds=num_rounds)
     return ServerAppComponents(strategy=strategy, config=config)
 

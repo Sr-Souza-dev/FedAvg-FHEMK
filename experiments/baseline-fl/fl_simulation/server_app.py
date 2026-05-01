@@ -6,10 +6,10 @@ from typing import List, Tuple
 
 from flwr.common import Context, Metrics, ndarrays_to_parameters
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
-from flwr.server.strategy import FedAvg
 
 from experiment_config import get_experiment_config
 from fl_simulation.model import Net, get_weights
+from fl_simulation.strategies.timed_fed_avg import TimedFedAvg
 from utils.files import (
     current_logs_dir,
     delete_directory_files,
@@ -21,6 +21,7 @@ from utils.files import (
 EXPERIMENT_NAME = "baseline-fl"
 execution_id = ""
 current_encrypted = False
+current_strategy = None  # Reference to strategy for accessing timing metrics
 EXPERIMENT_CONFIG = get_experiment_config(EXPERIMENT_NAME)
 
 
@@ -42,9 +43,21 @@ def fit_metrics_aggregation(metrics: List[Tuple[int, Metrics]]) -> Metrics:
     def _series(key: str) -> list[float]:
         return [m.get(key, 0.0) for _, m in metrics] + [_aggregate(key)]
 
+    # Server-side metrics
+    server_aggregation_time = current_strategy.last_aggregation_time if current_strategy else 0.0
+    server_decrypt_time = 0.0  # No decryption in baseline
+    server_execution_time = server_aggregation_time + server_decrypt_time
+
+    # Write all metrics with proper prefixes
     write_numbers_to_file("loss", [_series("train_loss")], base_path=base_path)
-    write_numbers_to_file("time", [_series("execution_time")], base_path=base_path)
-    write_numbers_to_file("size", [_series("size")], base_path=base_path)
+    write_numbers_to_file("client_train_time", [_series("train_time")], base_path=base_path)
+    write_numbers_to_file("client_encrypt_time", [_series("encrypt_time")], base_path=base_path)
+    write_numbers_to_file("client_decrypt_time", [_series("decrypt_time")], base_path=base_path)
+    write_numbers_to_file("client_execution_time", [_series("execution_time")], base_path=base_path)
+    write_numbers_to_file("client_size", [_series("size")], base_path=base_path)
+    write_numbers_to_file("server_aggregation_time", [[server_aggregation_time]], base_path=base_path)
+    write_numbers_to_file("server_decrypt_time", [[server_decrypt_time]], base_path=base_path)
+    write_numbers_to_file("server_execution_time", [[server_execution_time]], base_path=base_path)
     return {"train_loss": _aggregate("train_loss")}
 
 
@@ -61,7 +74,7 @@ def evaluate_metrics_aggregation(metrics: List[Tuple[int, Metrics]]) -> Metrics:
 
 
 def server_fn(context: Context):
-    global execution_id, current_encrypted
+    global execution_id, current_encrypted, current_strategy
 
     run_cfg = context.run_config
     current_encrypted = run_cfg.get("is-encrypted", 0) == 1
@@ -79,7 +92,7 @@ def server_fn(context: Context):
     def _eval_config(server_round: int) -> dict[str, float | int]:
         return {"server_round": server_round}
 
-    strategy = FedAvg(
+    strategy = TimedFedAvg(
         fraction_fit=run_cfg["fraction-fit"],
         fraction_evaluate=run_cfg["fraction-evaluate"],
         min_available_clients=2,
@@ -89,6 +102,7 @@ def server_fn(context: Context):
         on_fit_config_fn=_fit_config,
         on_evaluate_config_fn=_eval_config,
     )
+    current_strategy = strategy  # Store reference for metrics access
     server_config = ServerConfig(num_rounds=EXPERIMENT_CONFIG.num_rounds)
     return ServerAppComponents(strategy=strategy, config=server_config)
 

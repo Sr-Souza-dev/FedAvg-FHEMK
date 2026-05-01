@@ -15,6 +15,7 @@ from utils.files import experiment_output_dir, next_run_id, write_numbers_to_fil
 EXPERIMENT_NAME = "full_ckks-fl"
 execution_id = ""
 current_encrypted = True
+current_strategy: HomomorphicFedAvg | None = None  # Store strategy reference
 EXPERIMENT_CONFIG = get_experiment_config(EXPERIMENT_NAME)
 
 
@@ -36,9 +37,21 @@ def fit_metrics_aggregation(metrics: List[Tuple[int, Metrics]]) -> Metrics:
     def _series(key: str) -> list[float]:
         return [m.get(key, 0.0) for _, m in metrics] + [_aggregate(key)]
 
+    # Get server-side timing from strategy
+    server_aggregation_time = current_strategy.last_aggregation_time if current_strategy else 0.0
+    server_decrypt_time = current_strategy.last_server_decrypt_time if current_strategy else 0.0
+    server_execution_time = server_aggregation_time + server_decrypt_time
+
+    # Write all metrics with proper prefixes
     write_numbers_to_file("loss", [_series("train_loss")], base_path=base_path)
-    write_numbers_to_file("time", [_series("execution_time")], base_path=base_path)
-    write_numbers_to_file("size", [_series("size")], base_path=base_path)
+    write_numbers_to_file("client_train_time", [_series("train_time")], base_path=base_path)
+    write_numbers_to_file("client_encrypt_time", [_series("encrypt_time")], base_path=base_path)
+    write_numbers_to_file("client_decrypt_time", [_series("decrypt_time")], base_path=base_path)
+    write_numbers_to_file("client_execution_time", [_series("execution_time")], base_path=base_path)
+    write_numbers_to_file("client_size", [_series("size")], base_path=base_path)
+    write_numbers_to_file("server_aggregation_time", [[server_aggregation_time]], base_path=base_path)
+    write_numbers_to_file("server_decrypt_time", [[server_decrypt_time]], base_path=base_path)
+    write_numbers_to_file("server_execution_time", [[server_execution_time]], base_path=base_path)
 
     return {
         "train_loss": _aggregate("train_loss"),
@@ -59,7 +72,7 @@ def evaluate_metrics_aggregation(metrics: List[Tuple[int, Metrics]]) -> Metrics:
 
 
 def server_fn(context: Context) -> ServerAppComponents:
-    global execution_id, current_encrypted
+    global execution_id, current_encrypted, current_strategy
     run_cfg = context.run_config
     encrypted = run_cfg["is-encrypted"] == 1
     current_encrypted = encrypted
@@ -81,6 +94,7 @@ def server_fn(context: Context) -> ServerAppComponents:
         fit_metrics_aggregation_fn=fit_metrics_aggregation,
         evaluate_metrics_aggregation_fn=evaluate_metrics_aggregation,
     )
+    current_strategy = strategy  # Store reference for timing access
 
     server_config = ServerConfig(num_rounds=EXPERIMENT_CONFIG.num_rounds)
     return ServerAppComponents(strategy=strategy, config=server_config)

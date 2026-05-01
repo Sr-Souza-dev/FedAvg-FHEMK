@@ -37,7 +37,19 @@ EXPERIMENTS: tuple[ExperimentEntry, ...] = (
     ExperimentEntry("6", "selective_ckks-fl (mask 40%)", SELECTIVE_PATH, "selective_ckks-fl-40", 0.40),
     ExperimentEntry("7", "selective_ckks-fl (mask 80%)", SELECTIVE_PATH, "selective_ckks-fl-80", 0.80),
 )
+
+# Experimentos de escalabilidade: NEWCKKS e baseline com P = 5, 10, 20 clientes
+SCALABILITY_EXPERIMENTS: tuple[ExperimentEntry, ...] = (
+    ExperimentEntry("s1", "baseline-fl P=5", EXPERIMENTS_ROOT / "baseline-fl", "baseline-fl-p5"),
+    ExperimentEntry("s2", "baseline-fl P=10", EXPERIMENTS_ROOT / "baseline-fl", "baseline-fl"),
+    ExperimentEntry("s3", "baseline-fl P=20", EXPERIMENTS_ROOT / "baseline-fl", "baseline-fl-p20"),
+    ExperimentEntry("s4", "new_ckks-fl P=5", EXPERIMENTS_ROOT / "new_ckks-fl", "new_ckks-fl-p5"),
+    ExperimentEntry("s5", "new_ckks-fl P=10", EXPERIMENTS_ROOT / "new_ckks-fl", "new_ckks-fl-p10"),
+    ExperimentEntry("s6", "new_ckks-fl P=20", EXPERIMENTS_ROOT / "new_ckks-fl", "new_ckks-fl-p20"),
+)
+
 EXPERIMENT_LOOKUP = {entry.key: entry for entry in EXPERIMENTS}
+SCALABILITY_LOOKUP = {entry.key: entry for entry in SCALABILITY_EXPERIMENTS}
 MODEL_OPTIONS: tuple[ModelSpec, ...] = tuple(list_models())
 
 
@@ -52,6 +64,7 @@ def _build_menu(options: Iterable[ExperimentEntry]) -> str:
 
 
 MENU = _build_menu(EXPERIMENTS)
+SCALABILITY_MENU = _build_menu(SCALABILITY_EXPERIMENTS)
 MODEL_MENU = "\n".join(
     ["Escolha o modelo para os experimentos:"]
     + [
@@ -66,6 +79,25 @@ LOGGING_ENV_FLAG = "AQUIPLACA_ENABLE_LOGS"
 EXPERIMENT_ENV_FLAG = "AQUIPLACA_EXPERIMENT_NAME"
 MASK_RATIO_ENV_FLAG = "AQUIPLACA_MASK_RATIO"
 _RAY_AVAILABLE = importlib.util.find_spec("ray") is not None
+
+
+def warmup(model: ModelSpec) -> None:
+    """Run a dummy training step to warm up OS caches, PyTorch, and dataset I/O.
+
+    This eliminates the cold-start penalty that would otherwise bias the first
+    experiment to run (typically the baseline) with higher ``client_train_time``.
+    """
+    import torch
+    from models.loader import get_backend
+
+    print("Aquecendo caches (dataset, PyTorch, bibliotecas)...")
+    backend = get_backend(model.name)
+    net = backend.Net()
+    trainloader, _ = backend.load_data(0, 2)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    net.to(device)
+    backend.train(net, trainloader, 1, device)
+    print("Warmup concluido.")
 
 
 def venv_python() -> Path:
@@ -178,21 +210,51 @@ def run_experiment(entry: ExperimentEntry, model: ModelSpec | str) -> None:
         sys.exit(result.returncode)
 
 
+def ask_experiment_mode() -> str:
+    """Ask whether to run standard experiments or scalability analysis."""
+    prompt = (
+        "Modo de execucao:\n"
+        "  1 - Experimentos padrao\n"
+        "  2 - Analise de escalabilidade (P = 5, 10, 20 clientes)\n"
+        "Digite sua opcao (1/2): "
+    )
+    while True:
+        answer = input(prompt).strip()
+        if answer in ("1", "2"):
+            return answer
+        print("Opcao invalida.")
+
+
 def main() -> None:
     ensure_environment()
     logging_enabled = ask_logging_preference()
     set_logging_flag(logging_enabled)
     selected_model = ask_model_choice()
     os.environ[MODEL_ENV_VAR] = selected_model.name
-    choice = input(MENU).strip()
-    if choice == "0":
-        for entry in EXPERIMENTS:
-            run_experiment(entry, selected_model)
-    elif choice in EXPERIMENT_LOOKUP:
-        run_experiment(EXPERIMENT_LOOKUP[choice], selected_model)
+    warmup(selected_model)
+
+    mode = ask_experiment_mode()
+
+    if mode == "2":
+        choice = input(SCALABILITY_MENU).strip()
+        if choice == "0":
+            for entry in SCALABILITY_EXPERIMENTS:
+                run_experiment(entry, selected_model)
+        elif choice in SCALABILITY_LOOKUP:
+            run_experiment(SCALABILITY_LOOKUP[choice], selected_model)
+        else:
+            print("Opcao invalida. Encerrando.")
+            sys.exit(1)
     else:
-        print("Opcao invalida. Encerrando.")
-        sys.exit(1)
+        choice = input(MENU).strip()
+        if choice == "0":
+            for entry in EXPERIMENTS:
+                run_experiment(entry, selected_model)
+        elif choice in EXPERIMENT_LOOKUP:
+            run_experiment(EXPERIMENT_LOOKUP[choice], selected_model)
+        else:
+            print("Opcao invalida. Encerrando.")
+            sys.exit(1)
 
 
 if __name__ == "__main__":

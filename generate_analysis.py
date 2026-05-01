@@ -27,6 +27,16 @@ def main() -> None:
     table = stats.get("table") if isinstance(stats, dict) else None
     if table:
         print(f"\nResumo estatistico salvo em: {table}")
+    comparative = summary.get("comparative_table", {})
+    if comparative:
+        csv_path = comparative.get("csv")
+        latex_path = comparative.get("latex")
+        if csv_path or latex_path:
+            print("\nTabela comparativa gerada:")
+            if csv_path:
+                print(f"  * CSV: {csv_path}")
+            if latex_path:
+                print(f"  * LaTeX: {latex_path}")
     boxplots = summary.get("boxplots", {})
     if boxplots:
         print("\nBoxplots (variacao por rodada):")

@@ -48,20 +48,26 @@ class BaselineClient(NumPyClient):
             register_logs(file_name=self.client_id, title=title, value=value)
 
     def fit(self, parameters: Sequence[np.ndarray], config):
-        start = time.time()
         self._log(
             title=f"\n --- Round (fit) {config['server_round']} ---",
             value=f"Partition {self.partition_id} received {len(parameters)} tensors",
         )
         set_weights(self.net, parameters)
+        
+        # Training time
+        train_start = time.time()
         train_loss = train(self.net, self.trainloader, self.local_epochs, self.device)
+        train_time = time.time() - train_start
 
         weights = get_weights(self.net)
         payload_size = float(sum(np.asarray(w).nbytes for w in weights))
 
         metrics = {
             "train_loss": train_loss,
-            "execution_time": time.time() - start,
+            "train_time": train_time,
+            "encrypt_time": 0.0,  # No encryption in baseline
+            "decrypt_time": 0.0,  # No decryption in baseline
+            "execution_time": train_time,  # Total time (backward compatibility)
             "size": payload_size,
         }
         self._log(title="Updated metrics", value=repr(metrics))

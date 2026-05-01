@@ -11,7 +11,11 @@ from .plotters import (
     generate_metric_barplots,
     generate_metric_boxplots,
 )
-from .statistics import compute_all_statistics, save_statistics_table
+from .statistics import (
+    compute_all_statistics,
+    save_statistics_table,
+    save_comparative_table,
+)
 
 
 def run_full_analysis(experiments: Iterable[str] | None = None) -> dict[str, object]:
@@ -21,6 +25,7 @@ def run_full_analysis(experiments: Iterable[str] | None = None) -> dict[str, obj
     comparisons = generate_comparison_plots(experiment_names)
     statistics = compute_all_statistics(experiment_names)
     stats_table = save_statistics_table(statistics) if statistics else None
+    comparative_csv, comparative_latex = save_comparative_table(experiment_names)
     boxplots = generate_metric_boxplots(experiment_names)
     barplots = generate_metric_barplots(statistics)
     tradeoff = generate_accuracy_time_tradeoff(statistics)
@@ -32,6 +37,10 @@ def run_full_analysis(experiments: Iterable[str] | None = None) -> dict[str, obj
         "statistics": {
             "data": statistics,
             "table": stats_table,
+        },
+        "comparative_table": {
+            "csv": comparative_csv,
+            "latex": comparative_latex,
         },
         "boxplots": boxplots,
         "barplots": barplots,

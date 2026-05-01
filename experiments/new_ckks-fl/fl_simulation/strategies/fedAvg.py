@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from logging import WARNING
 from typing import Callable, Optional, Union
 
@@ -96,6 +97,9 @@ class FedAvg(Strategy):
         self.evaluate_metrics_aggregation_fn = evaluate_metrics_aggregation_fn
         self.inplace = inplace
         self.is_flattened = is_flattened
+        # Timing metrics
+        self.last_aggregation_time = 0.0
+        self.last_server_decrypt_time = 0.0
 
     def __repr__(self) -> str:
         """Compute a string representation of the strategy."""
@@ -203,6 +207,7 @@ class FedAvg(Strategy):
                 value=f"clients={len(results)}",
             )
 
+        agg_start = time.time()
         if self.is_flattened:
             sk = ckks.zero_polynomial()
             weights_cypher = []
@@ -224,7 +229,11 @@ class FedAvg(Strategy):
                     )
 
             aggregated_ndarrays = aggregate_ndarrays(weights_cypher)
+            
+            # Measure decryption time
+            decrypt_start = time.time()
             aggregated_vector = ckks.decrypt_batch(sk=sk, ciphertexts=aggregated_ndarrays)
+            self.last_server_decrypt_time = time.time() - decrypt_start
 
             if total_examples > 0:
                 aggregated_vector = aggregated_vector / total_examples
@@ -241,12 +250,15 @@ class FedAvg(Strategy):
             parameters_aggregated = ndarrays_to_parameters(aggregated_weights)
 
         else:
+            self.last_server_decrypt_time = 0.0
             weights_results = [
                 (parameters_to_ndarrays(res.parameters), res.num_examples)
                 for _, res in results
             ]
             aggregated_ndarrays = aggregate(weights_results)
             parameters_aggregated = ndarrays_to_parameters(aggregated_ndarrays)
+        
+        self.last_aggregation_time = time.time() - agg_start
 
         if log_enabled:
             register_logs(

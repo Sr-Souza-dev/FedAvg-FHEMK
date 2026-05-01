@@ -59,7 +59,6 @@ class SelectiveClient(NumPyClient):
         if parameters:
             set_weights(self.net, parameters)
 
-        start_time = time.time()
         logging = logging_enabled()
         if logging:
             register_logs(
@@ -72,9 +71,17 @@ class SelectiveClient(NumPyClient):
         flat_global = flatten_weights(global_weights)
         mask_indices = np.sort(decode_mask(str(config.get("mask-positions", ""))))
         mask_bool = boolean_mask(mask_indices, flat_global.size)
+        
+        # Decryption time (no decryption in selective, client receives plaintext)
+        decrypt_time = 0.0
+        
         exposed_before = prepare_exposed_before_training(self.exposed_vector, flat_global, mask_bool)
 
+        # Training time
+        train_start = time.time()
         train_loss = train(self.net, self.trainloader, self.local_epochs, self.device)
+        train_time = time.time() - train_start
+        
         trained_weights = get_weights(self.net)
         flat_trained = flatten_weights(trained_weights)
 
@@ -88,14 +95,21 @@ class SelectiveClient(NumPyClient):
         proposal_limit = max(mask_target, 1) * int(round(proposal_multiplier))
         proposal_payload = encode_mask_scores(mask_proposal_scores(importance, proposal_limit))
 
+        # Encryption time
+        encrypt_start = time.time()
         payload, plain_bytes, encrypted_bytes = self._build_payload(flat_trained, mask_indices)
+        encrypt_time = time.time() - encrypt_start if encrypted_bytes > 0 else 0.0
+        
         payload_size = plain_bytes + encrypted_bytes
 
         self.exposed_vector = finalize_exposed_after_training(exposed_before, flat_trained, mask_bool)
 
         metrics = {
             "train_loss": float(train_loss),
-            "execution_time": float(time.time() - start_time),
+            "train_time": float(train_time),
+            "encrypt_time": float(encrypt_time),
+            "decrypt_time": float(decrypt_time),
+            "execution_time": float(train_time + encrypt_time),
             "size": float(payload_size),
             "size_plain": float(plain_bytes),
             "size_encrypted": float(encrypted_bytes),

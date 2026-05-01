@@ -15,8 +15,8 @@ class Cryptogram:
             c0 = self.c0 + other.c0
             if not Cryptogram.fix_a:
                 c1 = self.c1 + other.c1
-            else: 
-                c1 = self.c1 if self.c1.degree > 2 else other.c1
+            else:
+                c1 = self.c1 if len(self.c1.coefficients) > 2 else other.c1
         elif isinstance(other, int):
             c0 = self.c0 + other
             c1 = self.c1

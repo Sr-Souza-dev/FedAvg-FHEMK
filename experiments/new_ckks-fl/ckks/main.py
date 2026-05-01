@@ -45,6 +45,7 @@ class CKKS:
         self.model_size = model_size
         self.model_structure = tuple(structure or [])
         self._key_cache: dict[str, Polynomials] = {}
+        self._fixed_a_cache: Polynomials | None = None
 
     def get_vector_size(self) -> int:
         """Returns the encoder slot count."""
@@ -63,7 +64,7 @@ class CKKS:
         write_numbers_to_file(
             open_mode="w",
             filename=prefix + "_sk",
-            values=[sk.coefficients],
+            values=[sk.coefficients.tolist()],
             basePath="keys/",
             type=".dat",
         )
@@ -104,24 +105,31 @@ class CKKS:
         write_numbers_to_file(
             open_mode="w",
             filename="fixed_a",
-            values=[a.coefficients],
+            values=[a.coefficients.tolist()],
             basePath="public/",
             type=".dat",
         )
+        self._fixed_a_cache = a
         return a
 
     def encrypt_phase1(self, sk: Polynomials) -> Cryptogram:
         if Cryptogram.fix_a:
-            a_coefficients = [int(val) for val in load_numbers_file("fixed_a", basePath="public/", type=".dat")]
-            if len(a_coefficients) == 0:
-                a = self.gen_new_fixed_a()
+            if self._fixed_a_cache is not None:
+                a = self._fixed_a_cache
             else:
-                a = Polynomials(a_coefficients)
+                a_coefficients = load_numbers_file("fixed_a", basePath="public/", type=".dat")
+                if len(a_coefficients) == 0:
+                    a = self.gen_new_fixed_a()
+                else:
+                    a = Polynomials([int(val) for val in a_coefficients])
+                    self._fixed_a_cache = a
         else:
             a = self.params.generate_a()
         e = self.params.generate_error()
 
-        c0 = ((-a * sk) + e) % self.params.qs
+        # Use FFT-based ring multiplication (sk has small coefficients)
+        neg_a = -a
+        c0 = (neg_a.ring_mul_small_mod(sk, self.params.qs) + e) % self.params.qs
         c1 = a
         return Cryptogram(c0, c1, self.params.qs)
 
@@ -155,7 +163,9 @@ class CKKS:
 
     def decrypt(self, sk: Polynomials, ciphertext: Cryptogram) -> np.ndarray:
         """Decrypts a ciphertext polynomial using the secret key."""
-        decrypted = (ciphertext.c0 + (sk * ciphertext.c1)) % ciphertext.q
+        # Use FFT-based ring multiplication (sk has small coefficients)
+        sk_times_c1 = ciphertext.c1.ring_mul_small_mod(sk, ciphertext.q)
+        decrypted = (ciphertext.c0 + sk_times_c1) % ciphertext.q
         decrypted = self.encoder.decode(decrypted)
         return decrypted
 

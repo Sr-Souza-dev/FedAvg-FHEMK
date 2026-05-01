@@ -107,3 +107,144 @@ def save_statistics_table(
                     row[key] = value
                 writer.writerow(row)
     return target
+
+
+def comparative_table_path() -> Path:
+    return analysis_dir() / "comparative_table.csv"
+
+
+def comparative_table_latex_path() -> Path:
+    return analysis_dir() / "comparative_table.tex"
+
+
+def save_comparative_table(experiments: list[str]) -> tuple[Path | None, Path | None]:
+    """
+    Generate a comparative table with all experiments showing final metrics.
+    Returns both CSV and LaTeX table paths.
+    """
+    from .data_utils import average_directory, read_dat_file, METRIC_EXTENSION, split_columns, get_experiment_style
+    
+    # Collect final metrics for each experiment
+    experiment_data = []
+    
+    for experiment in experiments:
+        avg_dir = average_directory(experiment)
+        if not avg_dir.exists():
+            continue
+        
+        # Load metrics with new prefixed names
+        metrics = {}
+        metric_names = [
+            "accuracy", "client_train_time", "client_encrypt_time", "client_decrypt_time",
+            "server_aggregation_time", "server_decrypt_time", "server_execution_time", "client_size"
+        ]
+        
+        for metric in metric_names:
+            data_file = avg_dir / f"{metric}{METRIC_EXTENSION}"
+            if not data_file.exists():
+                continue
+            
+            matrix = read_dat_file(data_file)
+            if not matrix:
+                continue
+            
+            columns = split_columns(matrix)
+            if columns and columns[-1]:
+                # Get final value (last round) or average for time metrics
+                values = columns[-1]
+                valid_values = [v for v in values if not (math.isnan(v) or math.isinf(v))]
+                
+                if not valid_values:
+                    continue
+                
+                if metric == "accuracy":
+                    metrics[metric] = valid_values[-1]  # Final accuracy
+                elif metric == "client_size":
+                    # Convert to MB and get average
+                    avg_bytes = sum(valid_values) / len(valid_values)
+                    metrics[metric] = avg_bytes / (1024 * 1024)  # Convert to MB
+                elif metric in ["server_aggregation_time", "server_decrypt_time", "server_execution_time"]:
+                    # Server-side times - single value per round
+                    metrics[metric] = valid_values[0] if valid_values else 0.0
+                else:
+                    # Client-side times - average across clients
+                    metrics[metric] = sum(valid_values) / len(valid_values)
+        
+        if metrics:
+            style = get_experiment_style(experiment)
+            experiment_data.append({
+                "experiment": experiment,
+                "display_name": style.display_name,
+                "final_accuracy": metrics.get("accuracy", 0.0),
+                "avg_train_time": metrics.get("client_train_time", 0.0),
+                "avg_encrypt_time": metrics.get("client_encrypt_time", 0.0),
+                "avg_decrypt_time": metrics.get("client_decrypt_time", 0.0),
+                "avg_aggregation_time": metrics.get("server_aggregation_time", 0.0),
+                "avg_server_decrypt_time": metrics.get("server_decrypt_time", 0.0),
+                "avg_server_execution_time": metrics.get("server_execution_time", 0.0),
+                "avg_size_mb": metrics.get("client_size", 0.0),
+            })
+    
+    if not experiment_data:
+        return None, None
+    
+    ensure_directory(analysis_dir())
+    
+    # Save CSV
+    csv_path = comparative_table_path()
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=[
+            "Baseline", "Final Accuracy", 
+            "Avg Train Time (s)", "Avg Encrypt Time (s)", "Avg Decrypt Time (s)",
+            "Avg Aggregation Time (s)", "Avg Server Decrypt Time (s)", "Avg Server Total Time (s)",
+            "Avg Communication per Round (MB)"
+        ])
+        writer.writeheader()
+        for data in experiment_data:
+            writer.writerow({
+                "Baseline": data["display_name"],
+                "Final Accuracy": f"{data['final_accuracy']:.4f}",
+                "Avg Train Time (s)": f"{data['avg_train_time']:.4f}",
+                "Avg Encrypt Time (s)": f"{data['avg_encrypt_time']:.4f}",
+                "Avg Decrypt Time (s)": f"{data['avg_decrypt_time']:.4f}",
+                "Avg Aggregation Time (s)": f"{data['avg_aggregation_time']:.4f}",
+                "Avg Server Decrypt Time (s)": f"{data['avg_server_decrypt_time']:.4f}",
+                "Avg Server Total Time (s)": f"{data['avg_server_execution_time']:.4f}",
+                "Avg Communication per Round (MB)": f"{data['avg_size_mb']:.2f}",
+            })
+    
+    # Save LaTeX
+    latex_path = comparative_table_latex_path()
+    with latex_path.open("w", encoding="utf-8") as f:
+        f.write("\\begin{table}[H]\n")
+        f.write("\t\\centering\n")
+        f.write("\t\\caption{Resultados experimentais}\n")
+        f.write("\t\\label{tab:results_comparison}\n")
+        f.write("\t\\begin{tabular}{|\n")
+        f.write("\t\t\tp{2.3cm}|\n")  # Baseline
+        f.write("\t\t\t>{\\centering\\arraybackslash}p{1.6cm}|\n")  # Accuracy
+        f.write("\t\t\t>{\\centering\\arraybackslash}p{1.4cm}|\n")  # Train Time
+        f.write("\t\t\t>{\\centering\\arraybackslash}p{1.4cm}|\n")  # Encrypt Time
+        f.write("\t\t\t>{\\centering\\arraybackslash}p{1.4cm}|\n")  # Decrypt Time
+        f.write("\t\t\t>{\\centering\\arraybackslash}p{1.5cm}|\n")  # Aggregation Time
+        f.write("\t\t\t>{\\centering\\arraybackslash}p{1.7cm}|\n")  # Server Decrypt Time
+        f.write("\t\t\t>{\\centering\\arraybackslash}p{1.5cm}|\n")  # Server Total Time
+        f.write("\t\t\t>{\\centering\\arraybackslash}p{2.0cm}|}\n")  # Communication
+        f.write("\t\t\\hline\n")
+        f.write("\t\tBaseline & Acurácia & Treino (s) & Cifrar (s) & Decifrar (s) & Agregar (s) & Decif. Serv. (s) & Total Serv. (s) & Comunic. (MB) \\\\ \\hline\n")
+        
+        for data in experiment_data:
+            f.write(f"\t\t{data['display_name']} & ")
+            f.write(f"{data['final_accuracy']:.4f} & ")
+            f.write(f"{data['avg_train_time']:.4f} & ")
+            f.write(f"{data['avg_encrypt_time']:.4f} & ")
+            f.write(f"{data['avg_decrypt_time']:.4f} & ")
+            f.write(f"{data['avg_aggregation_time']:.4f} & ")
+            f.write(f"{data['avg_server_decrypt_time']:.4f} & ")
+            f.write(f"{data['avg_server_execution_time']:.4f} & ")
+            f.write(f"{data['avg_size_mb']:.2f} \\\\ \\hline\n")
+        
+        f.write("\t\\end{tabular}\n")
+        f.write("\\end{table}\n")
+    
+    return csv_path, latex_path

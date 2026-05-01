@@ -1,39 +1,39 @@
 ["baseline-fl"]
-num_rounds = 20
-clients_qtd =10 
-epochs = 1
+num_rounds = 40
+clients_qtd =30 
+epochs = 5
 
 ["new_ckks-fl"]
-num_rounds = 20
-clients_qtd =10 
-epochs = 1
+num_rounds = 40
+clients_qtd =30
+epochs = 5
 
 ["full_ckks-fl"]
-num_rounds = 20
-clients_qtd =10 
-epochs = 1
+num_rounds = 40
+clients_qtd =30
+epochs = 5
 
 ["selective_ckks-fl"]
-num_rounds = 20
-clients_qtd =10 
-epochs = 1
+num_rounds = 40
+clients_qtd =30
+epochs = 5
 
 ["selective_ckks-fl-10"]
-num_rounds = 20
-clients_qtd =10 
-epochs = 1
+num_rounds = 40
+clients_qtd =30
+epochs = 5
 
 ["selective_ckks-fl-20"]
-num_rounds = 20
-clients_qtd =10 
-epochs = 1
+num_rounds = 40
+clients_qtd =30
+epochs = 5
 
 ["selective_ckks-fl-40"]
-num_rounds = 20
-clients_qtd =10 
-epochs = 1
+num_rounds = 40
+clients_qtd =30 
+epochs = 5
 
 ["selective_ckks-fl-80"]
-num_rounds = 20
-clients_qtd =10 
-epochs = 1
+num_rounds = 40
+clients_qtd =30
+epochs = 5

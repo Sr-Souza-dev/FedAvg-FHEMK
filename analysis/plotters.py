@@ -223,6 +223,54 @@ def generate_metric_barplots(
     return outputs
 
 
+def generate_scalability_plot(
+    statistics: dict[str, dict[str, dict[str, float]]],
+    scalability_groups: dict[str, list[tuple[int, str]]],
+) -> dict[str, Path | None]:
+    """Generate overhead-vs-P plots for scalability analysis.
+
+    ``scalability_groups`` maps a group label (e.g. "NEWCKKS") to a list of
+    ``(num_clients, experiment_name)`` pairs, sorted by num_clients.
+    """
+    ensure_directory(plots_dir() / "analysis")
+    outputs: dict[str, Path | None] = {}
+
+    metrics_to_plot = {
+        "client_execution_time": "Tempo médio por rodada (Cliente, s)",
+        "setup_time": "Tempo de Setup - Fase 1 (s)",
+        "client_size": "Tamanho de Payload (bytes)",
+    }
+
+    for metric_name, ylabel in metrics_to_plot.items():
+        fig, ax = plt.subplots(figsize=(7, 4))
+        plotted = False
+        for group_label, entries in scalability_groups.items():
+            p_values, metric_values = [], []
+            for p, exp_name in entries:
+                val = statistics.get(exp_name, {}).get(metric_name, {}).get("mean")
+                if val is not None and not math.isnan(val):
+                    p_values.append(p)
+                    metric_values.append(val)
+            if p_values:
+                ax.plot(p_values, metric_values, marker="o", label=group_label, linewidth=2)
+                plotted = True
+        if not plotted:
+            plt.close(fig)
+            outputs[metric_name] = None
+            continue
+        ax.set_xlabel("Número de clientes (P)")
+        ax.set_ylabel(ylabel)
+        ax.set_title(f"Escalabilidade – {ylabel}")
+        ax.legend()
+        ax.grid(True, linestyle="--", alpha=0.3)
+        fig.tight_layout()
+        target = plots_dir() / "analysis" / f"scalability_{metric_name}.png"
+        fig.savefig(target, dpi=200)
+        plt.close(fig)
+        outputs[metric_name] = target
+    return outputs
+
+
 def generate_accuracy_time_tradeoff(
     statistics: dict[str, dict[str, dict[str, float]]],
 ) -> Path | None:
@@ -231,7 +279,7 @@ def generate_accuracy_time_tradeoff(
     styles = []
     for experiment, metrics in statistics.items():
         acc = metrics.get("accuracy", {}).get("final")
-        time_metric = metrics.get("time", {}).get("mean")
+        time_metric = metrics.get("client_execution_time", {}).get("mean")
         if acc is None or time_metric is None or math.isnan(acc) or math.isnan(time_metric):
             continue
         points.append((time_metric, acc))

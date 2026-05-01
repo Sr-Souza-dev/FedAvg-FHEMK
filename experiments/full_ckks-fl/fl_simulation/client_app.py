@@ -43,10 +43,16 @@ class FlowerClient(NumPyClient):
     def fit(self, parameters: List[Any], config: Dict[str, Any]):
         if parameters:
             set_weights(self.net, parameters)
-        start = time.time()
+        
+        # Training time
+        train_start = time.time()
         train_loss = train(self.net, self.trainloader, self.local_epochs, self.device)
+        train_time = time.time() - train_start
+        
         updated_weights = get_weights(self.net)
 
+        # Encryption time
+        encrypt_start = time.time()
         payload_size = 0
         if self.encrypted_updates and self.he:
             flat = flatten_weights(updated_weights)
@@ -56,10 +62,14 @@ class FlowerClient(NumPyClient):
         else:
             weights_payload = updated_weights
             payload_size = sum(np.asarray(weight).nbytes for weight in updated_weights)
+        encrypt_time = time.time() - encrypt_start if self.encrypted_updates else 0.0
 
         metrics = {
             "train_loss": train_loss,
-            "execution_time": time.time() - start,
+            "train_time": train_time,
+            "encrypt_time": encrypt_time,
+            "decrypt_time": 0.0,  # Client doesn't decrypt in full_ckks
+            "execution_time": train_time + encrypt_time,
             "size": float(payload_size),
         }
         return weights_payload, len(self.trainloader.dataset), metrics

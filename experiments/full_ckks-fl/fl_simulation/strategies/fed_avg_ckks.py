@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from logging import WARNING
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
@@ -74,6 +75,9 @@ class HomomorphicFedAvg(Strategy):
         self.weight_template: Optional[List[np.ndarray]] = None
         self.ckks_context = build_shared_context() if encrypted else None
         self.he = self.ckks_context.build_he(with_secret=True) if encrypted else None
+        # Timing metrics
+        self.last_aggregation_time = 0.0
+        self.last_server_decrypt_time = 0.0
 
     def __repr__(self) -> str:
         return "HomomorphicFedAvg()"
@@ -152,6 +156,9 @@ class HomomorphicFedAvg(Strategy):
             return None, {}
 
         metrics_aggregated: Dict[str, Scalar] = {}
+        
+        # Measure aggregation time
+        agg_start = time.time()
         if self.encrypted:
             aggregated_params = self._aggregate_encrypted(results)
         else:
@@ -161,6 +168,7 @@ class HomomorphicFedAvg(Strategy):
             ]
             aggregated_ndarrays = aggregate(weights_results)
             aggregated_params = ndarrays_to_parameters(aggregated_ndarrays)
+        self.last_aggregation_time = time.time() - agg_start
 
         if self.fit_metrics_aggregation_fn is not None:
             fit_metrics = [(res.num_examples, res.metrics) for _, res in results]
@@ -197,6 +205,9 @@ class HomomorphicFedAvg(Strategy):
     ) -> Parameters:
         if not self.ckks_context or not self.he:
             raise RuntimeError("CKKS context not initialised")
+        
+        # Aggregation phase (encrypted operations)
+        agg_phase_start = time.time()
         total_examples = 0
         aggregated_ciphertexts: List = []
         vector_len: Optional[int] = None
@@ -223,9 +234,14 @@ class HomomorphicFedAvg(Strategy):
         averaged_ciphertexts = self.ckks_context.scale_ciphertexts(
             aggregated_ciphertexts, scaling
         )
+        
+        # Decryption phase
+        decrypt_start = time.time()
         decrypted = self.ckks_context.decrypt_vector(
             self.he, averaged_ciphertexts, vector_len or 0
         )
+        self.last_server_decrypt_time = time.time() - decrypt_start
+        
         if self.weight_template is None:
             raise RuntimeError("Weight template missing for unflattening")
         weights = unflatten_weights(decrypted, self.weight_template)

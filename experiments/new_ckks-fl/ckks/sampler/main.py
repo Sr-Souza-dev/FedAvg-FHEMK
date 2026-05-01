@@ -16,34 +16,23 @@ def get_random_normal_polynomial(N: int, bound: float, rng: np.random.Generator)
     return Polynomials(rng.normal(0, bound, N))
 
 
-def coordinate_wise_random_rounding(coordinates, rng: np.random.Generator):
+def coordinate_wise_random_rounding(coordinates, rng: np.random.Generator) -> np.ndarray:
     """Rounds coordinates randomly using stochastic rounding."""
     coords = np.asarray(coordinates, dtype=np.float64)
     fractional = coords - np.floor(coords)
     samples = rng.random(len(coords))
     rounded = np.where(samples < fractional, np.ceil(coords), np.floor(coords))
-    return rounded.astype(int).tolist()
+    return rounded.astype(np.int64)
 
 
 class Sampler:
-    # Scale padrão para codificação
     DEFAULT_SCALE = 2**16
 
     def __init__(self, N: int, sigma: float, seed: float = 42):
-        """
-        :param N: Polynomial degree (number of coefficients/slots)
-        :param sigma: Standard deviation for noise generation
-        :param seed: Random seed for reproducibility
-        """
-
         self.N = N
         self.seed = seed
         self.sigma = sigma
-
-        # q é o primo NTT para garantir consistência e performance
         self.qs = NTT.DEFAULT_PRIME
-
-        # Scale fixo em 2^16 para boa precisão em aplicações ML
         self.scale = self.DEFAULT_SCALE
 
         Polynomials.N = N

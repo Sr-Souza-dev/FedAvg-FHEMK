@@ -34,7 +34,6 @@ class FlowerClient(NumPyClient):
         self.sk = ckks.load_key(prefix=str(clientId))
 
     def fit(self, parameters, config):
-        start = time.time()
         log_enabled = logging_enabled()
         if log_enabled:
             register_logs(
@@ -43,6 +42,8 @@ class FlowerClient(NumPyClient):
                 value=f"received_tensors={len(parameters)}",
             )
 
+        # Decryption time
+        decrypt_start = time.time()
         model_parameters = parameters
         if (
             self.is_flattened
@@ -58,19 +59,26 @@ class FlowerClient(NumPyClient):
                     title="\nModel Received (unflattened)",
                     value=f"num_tensors={len(model_parameters)}",
                 )
+        decrypt_time = time.time() - decrypt_start if self.is_flattened else 0.0
 
         set_weights(self.net, model_parameters)
+        
+        # Training time
+        train_start = time.time()
         train_loss = train(
             self.net,
             self.trainloader,
             self.local_epochs,
             self.device,
         )
+        train_time = time.time() - train_start
 
         weights = get_weights(self.net)
         num_examples = len(self.trainloader.dataset)
         payload_size = float(sum(np.asarray(w).nbytes for w in weights))
 
+        # Encryption time
+        encrypt_start = time.time()
         if self.is_flattened:
             flat_weights = flatten(weights)
             # Scale locally so the server can aggregate ciphertexts directly
@@ -90,14 +98,17 @@ class FlowerClient(NumPyClient):
                     title="\n Encryption summary:",
                     value=f"ciphertexts={len(weights)} payload_bytes={payload_size}",
                 )
+        encrypt_time = time.time() - encrypt_start if self.is_flattened else 0.0
 
-        end = time.time()
         return (
             weights,
             num_examples,
             {
                 "train_loss": train_loss,
-                "execution_time": end - start,
+                "train_time": train_time,
+                "encrypt_time": encrypt_time,
+                "decrypt_time": decrypt_time,
+                "execution_time": train_time + encrypt_time + decrypt_time,
                 "size": payload_size,
             },
         )
